@@ -17,11 +17,20 @@ const POSTGREST_URL = process.env.POSTGREST_URL;
  * Bug real encontrado en Checkpoint 3b: el access token dura 15 minutos pero la
  * sesion de NextAuth dura 24 horas -- sin esto, cualquier sesion de mas de 15 min
  * hacia que TODAS las llamadas a PostgREST fallaran con "JWT expired" (401) y
- * tumbaran la pagina completa (dashboard-data.ts no atrapaba ese error). Aqui se
- * verifica la expiracion en cada request y se rota el access+refresh token usando
- * el mismo flujo de /api/auth/refresh (verificar firma, chequear revoked_token,
- * emitir nuevos, revocar el anterior) -- pero inline en el callback jwt, que es
- * donde NextAuth realmente permite mutar el token de sesion persistido.
+ * tumbaran la pagina completa (dashboard-data.ts no atrapaba ese error).
+ *
+ * Segundo bug real encontrado al VERIFICAR EMPIRICAMENTE el primer fix (no
+ * bastaba con que compilara): las paginas hacen varios fetch en paralelo
+ * (Promise.all en dashboard-data.ts), y cada uno de lib/postgrest.ts llama a
+ * auth() por su cuenta. Con 4-5 llamadas concurrentes dentro del MISMO request,
+ * la primera en terminar rotaba Y REVOCABA el refresh token viejo -- las demas,
+ * que arrancaron con esa misma copia (todavia expirada) del token antes de que
+ * la primera terminara, se encontraban el refresh token ya revocado y fallaban
+ * en cascada ("Refresh token revocado" x9 en los logs). Rotar el refresh token
+ * en cada renovacion silenciosa era el problema: la solucion es NO rotarlo aqui
+ * -- solo emitir un access token nuevo y conservar el mismo refresh token hasta
+ * que expire de verdad (24h) o el usuario cierre sesion. Sin revocacion de por
+ * medio, las llamadas concurrentes ya no pueden invalidarse entre si.
  */
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
@@ -42,13 +51,10 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
     if (revokedRows.length > 0) throw new Error("Refresh token revocado");
 
     const newAccessToken = await signAccessToken(claims.user_id, (token.email as string) ?? "", claims.app_role);
-    const { token: newRefreshToken } = await signRefreshToken(claims.user_id, claims.app_role);
-    await revokeRefreshToken(refreshToken, "rotated");
 
     return {
       ...token,
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
       accessTokenExpires: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
       error: undefined,
     };
