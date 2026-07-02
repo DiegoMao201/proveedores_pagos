@@ -6,6 +6,8 @@ export interface ReconciledRow {
   invoice_key: string;
   nombre_display: string | null;
   num_factura_correo: string;
+  tipo_documento_correo: string | null;
+  es_nota_credito: boolean;
   valor_total_correo: number;
   fecha_emision_correo: string | null;
   fecha_vencimiento_correo: string | null;
@@ -13,6 +15,20 @@ export interface ReconciledRow {
   fecha_vencimiento_erp: string | null;
   estado_erp: "pendiente" | "saldada";
   diferencia_valor: number;
+  diferencia_pct: number;
+}
+
+export interface ReconciliationKpis {
+  conciliadas: number;
+  conciliadas_sin_diferencia: number;
+  correo_sin_erp: number;
+  erp_pendiente_sin_correo: number;
+  erp_saldada_sin_correo: number;
+}
+
+export interface ReconciliationDiffRow {
+  categoria: "SIN_DIFERENCIA" | "MENOR" | "MODERADA" | "CRITICA";
+  n: number;
 }
 
 export interface EmailWithoutErpRow {
@@ -86,7 +102,28 @@ export async function getErpWithoutEmail(page: number, pageSize: number) {
   return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email", "*", "fecha_vencimiento_erp.asc", page, pageSize);
 }
 
-export async function getDiscountAlerts(maxDays = 7): Promise<DiscountAlertRow[]> {
+export async function getReconciliationKpis(): Promise<ReconciliationKpis> {
+  const res = await postgrestFetch("/v_reconciliation_kpis", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_reconciliation_kpis -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as ReconciliationKpis[];
+  return (
+    rows[0] ?? {
+      conciliadas: 0,
+      conciliadas_sin_diferencia: 0,
+      correo_sin_erp: 0,
+      erp_pendiente_sin_correo: 0,
+      erp_saldada_sin_correo: 0,
+    }
+  );
+}
+
+export async function getReconciliationDiffs(): Promise<ReconciliationDiffRow[]> {
+  const res = await postgrestFetch("/v_reconciliation_diffs", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_reconciliation_diffs -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export async function getDiscountAlerts(maxDays = 5): Promise<DiscountAlertRow[]> {
   const res = await postgrestFetch(
     "/erp_pending?select=invoice_key,nombre_proveedor_erp,fecha_emision_erp,valor_total_erp",
     {},

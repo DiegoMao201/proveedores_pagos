@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertCircle, CheckCircle2, HelpCircle, Inbox } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
@@ -6,8 +7,10 @@ import {
   getEmailWithoutErp,
   getErpWithoutEmail,
   getDiscountAlerts,
+  getReconciliationKpis,
+  getReconciliationDiffs,
 } from "@/lib/conciliacion-data";
-import { formatCurrency, formatDateEs } from "@/lib/format";
+import { formatCurrency, formatCompact, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -15,20 +18,32 @@ interface PageProps {
 
 const PAGE_SIZE = 100;
 
+const DIFF_LABELS: Record<string, { label: string; tone: string }> = {
+  SIN_DIFERENCIA: { label: "Sin diferencia", tone: "var(--color-success)" },
+  MENOR: { label: "Menor (<0.5%)", tone: "var(--color-yellow)" },
+  MODERADA: { label: "Moderada (0.5-5%)", tone: "var(--color-orange)" },
+  CRITICA: { label: "Crítica (>5%)", tone: "var(--color-red-deep)" },
+};
+
 export default async function ConciliacionPage({ searchParams }: PageProps) {
   const sp = await searchParams;
-  const tab = sp.tab ?? "conciliadas";
+  const tab = sp.tab ?? "alertas";
 
   let dataError: string | null = null;
   let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0 };
+  let kpis = { conciliadas: 0, conciliadas_sin_diferencia: 0, correo_sin_erp: 0, erp_pendiente_sin_correo: 0, erp_saldada_sin_correo: 0 };
+  let diffs: { categoria: string; n: number }[] = [];
+  let alertsTotal = 0;
   let content: React.ReactNode = null;
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult] = await Promise.all([
       getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
       getEmailWithoutErp(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1),
       getErpWithoutEmail(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1),
-      getDiscountAlerts(7),
+      getDiscountAlerts(5),
+      getReconciliationKpis(),
+      getReconciliationDiffs(),
     ]);
 
     counts = {
@@ -37,6 +52,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       erpSinCorreo: erpWithoutEmail.total,
       alertas: alerts.length,
     };
+    kpis = kpisResult;
+    diffs = diffsResult;
+    alertsTotal = alerts.reduce((sum, a) => sum + a.valorDescuento, 0);
 
     if (tab === "conciliadas") {
       content = (
@@ -55,22 +73,26 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             </thead>
             <tbody>
               {reconciled.rows.map((row) => {
-                const pctDiff = row.valor_total_correo ? Math.abs(row.diferencia_valor) / row.valor_total_correo : 0;
-                const tone = row.diferencia_valor === 0 ? "success" : pctDiff < 0.01 ? "warning" : "danger";
+                const tone =
+                  row.diferencia_valor < 1 ? "success" : row.diferencia_pct < 0.5 ? "warning" : row.diferencia_pct < 5 ? "moderate" : "danger";
+                const toneColor =
+                  tone === "success" ? "var(--color-success)" : tone === "warning" ? "var(--color-yellow)" : tone === "moderate" ? "var(--color-orange)" : "var(--color-red-deep)";
                 return (
                   <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                    <td className="px-6 py-3 font-semibold text-ink">{row.nombre_display}</td>
+                    <td className="px-6 py-3 font-semibold text-ink">
+                      {humanizeProviderName(row.nombre_display ?? "")}
+                      {row.es_nota_credito && <span className="text-stone"> · Nota crédito</span>}
+                    </td>
                     <td className="num px-4 py-3">{row.num_factura_correo}</td>
-                    <td className="px-4 py-3 capitalize text-stone">{row.estado_erp}</td>
+                    <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_erp)}</td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.diferencia_valor)}</td>
                     <td className="px-6 py-3">
                       <span
-                        className={`inline-block h-3 w-3 rounded-full ${
-                          tone === "success" ? "bg-success" : tone === "warning" ? "bg-yellow" : "bg-red-deep"
-                        }`}
-                        title={tone === "success" ? "Coincide" : tone === "warning" ? "Diferencia menor a 1%" : "Diferencia significativa"}
+                        className="inline-block h-3 w-3 rounded-full"
+                        style={{ backgroundColor: toneColor }}
+                        title={`${row.diferencia_pct}% de diferencia`}
                       />
                     </td>
                   </tr>
@@ -99,7 +121,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             <tbody>
               {emailWithoutErp.rows.map((row) => (
                 <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                  <td className="px-6 py-3 font-semibold text-ink">{row.proveedor_correo}</td>
+                  <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.proveedor_correo ?? "")}</td>
                   <td className="num px-4 py-3">{row.num_factura}</td>
                   <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>
                   <td className="date px-4 py-3">{row.fecha_emision_correo ? formatDateEs(row.fecha_emision_correo) : "—"}</td>
@@ -129,9 +151,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             <tbody>
               {erpWithoutEmail.rows.map((row) => (
                 <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                  <td className="px-6 py-3 font-semibold text-ink">{row.nombre_proveedor_erp}</td>
+                  <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
                   <td className="num px-4 py-3">{row.num_factura}</td>
-                  <td className="px-4 py-3 capitalize text-stone">{row.estado_erp}</td>
+                  <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
                   <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_erp)}</td>
                   <td className="date px-6 py-3">{row.fecha_vencimiento_erp ? formatDateEs(row.fecha_vencimiento_erp) : "—"}</td>
                 </tr>
@@ -146,6 +168,19 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     } else if (tab === "alertas") {
       content = (
         <div className="overflow-x-auto">
+          {alerts.length > 0 && (
+            <div className="flex items-center justify-between border-b border-line bg-cream-soft" style={{ padding: "10px 14px" }}>
+              <p className="text-red-deep" style={{ fontSize: 12, fontWeight: 700 }}>
+                Ahorro total en riesgo: {formatCurrency(alertsTotal)}
+              </p>
+              <button
+                className="text-white"
+                style={{ background: "var(--color-red-deep)", borderRadius: 8, padding: "8px 14px", fontSize: 11, fontWeight: 800 }}
+              >
+                Pagar seleccionadas
+              </button>
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead className="bg-parchment text-left text-xs font-semibold uppercase tracking-wide text-stone">
               <tr>
@@ -159,13 +194,22 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             <tbody>
               {alerts.map((row) => (
                 <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                  <td className="px-6 py-3 font-semibold text-ink">{row.nombre_proveedor_erp}</td>
+                  <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
                   <td className="num px-4 py-3 text-right">{(row.rate * 100).toFixed(1)}%</td>
-                  <td className="num px-4 py-3 text-right text-success">{formatCurrency(row.valorDescuento)}</td>
+                  <td className="num px-4 py-3 text-right text-success">−{formatCurrency(row.valorDescuento)}</td>
                   <td className="date px-4 py-3">{formatDateEs(row.deadline)}</td>
                   <td className="px-6 py-3">
-                    <span className={`text-sm font-semibold ${row.daysLeft <= 2 ? "text-red-deep" : "text-orange"}`}>
-                      {row.daysLeft <= 0 ? "Vence hoy" : `${row.daysLeft} día(s)`}
+                    <span
+                      className="inline-block text-white"
+                      style={{
+                        borderRadius: 999,
+                        padding: "3px 9px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        background: row.daysLeft <= 0 ? "var(--color-red-deep)" : row.daysLeft <= 2 ? "var(--color-red)" : "var(--color-orange)",
+                      }}
+                    >
+                      {row.daysLeft <= 0 ? "Hoy" : `${row.daysLeft}d`}
                     </span>
                   </td>
                 </tr>
@@ -173,7 +217,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             </tbody>
           </table>
           {alerts.length === 0 && (
-            <EmptyState icon={<CheckCircle2 size={48} />} text="Ningún descuento por pronto pago vence en los próximos 7 días." />
+            <EmptyState icon={<CheckCircle2 size={48} />} text="Ningún descuento por pronto pago vence en los próximos 5 días." />
           )}
         </div>
       );
@@ -182,11 +226,21 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     dataError = error instanceof Error ? error.message : "Error desconocido";
   }
 
+  const saludPct = kpis.conciliadas + kpis.correo_sin_erp > 0
+    ? Math.round((kpis.conciliadas / (kpis.conciliadas + kpis.correo_sin_erp)) * 100)
+    : 0;
+  const totalDiffs = diffs.reduce((sum, d) => sum + d.n, 0) || 1;
+  const criticaCount = diffs.find((d) => d.categoria === "CRITICA")?.n ?? 0;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Conciliación</h1>
-        <p className="text-sm text-stone">Cruce entre correo electrónico y cartera del ERP.</p>
+        <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
+          Conciliación
+        </h1>
+        <p className="text-stone" style={{ fontSize: 12 }}>
+          Cruce entre correo electrónico y cartera del ERP · Salud {saludPct}%
+        </p>
       </div>
 
       {dataError ? (
@@ -197,18 +251,91 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
           </p>
         </Card>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line bg-paper shadow-sm">
-          <ConciliacionTabs
-            active={tab}
-            tabs={[
-              { key: "conciliadas", label: "Conciliadas", count: counts.conciliadas },
-              { key: "correo-sin-erp", label: "Correo sin ERP", count: counts.correoSinErp },
-              { key: "erp-sin-correo", label: "ERP sin correo", count: counts.erpSinCorreo },
-              { key: "alertas", label: "Alertas de descuento", count: counts.alertas },
-            ]}
-          />
-          {content}
-        </div>
+        <>
+          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <Link href="/conciliacion?tab=alertas">
+              <Card style={{ borderColor: "var(--color-red)", boxShadow: "var(--shadow-glow-red)" }}>
+                <p className="text-red-deep" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Accionable hoy
+                </p>
+                <p className="num text-red-deep" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{counts.alertas}</p>
+                <p className="text-ink" style={{ fontSize: 11, fontWeight: 700, marginTop: 2 }}>Descuentos por perder</p>
+                <p className="text-stone" style={{ fontSize: 10 }}>{formatCompact(alertsTotal)} en riesgo · vencen ≤5d</p>
+              </Card>
+            </Link>
+            <Link href="/conciliacion?tab=correo-sin-erp">
+              <Card style={{ borderColor: "var(--color-orange)" }}>
+                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-orange)" }}>
+                  Sin cargar al ERP
+                </p>
+                <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{counts.correoSinErp.toLocaleString("es-CO")}</p>
+                <p className="text-ink" style={{ fontSize: 11, fontWeight: 700, marginTop: 2 }}>Correo sin ERP</p>
+                <p className="text-stone" style={{ fontSize: 10 }}>XML recibido, falta contable</p>
+              </Card>
+            </Link>
+            <Link href="/conciliacion?tab=erp-sin-correo">
+              <Card style={{ borderColor: "var(--color-yellow)" }}>
+                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-graphite)" }}>
+                  XML pendiente
+                </p>
+                <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{counts.erpSinCorreo.toLocaleString("es-CO")}</p>
+                <p className="text-ink" style={{ fontSize: 11, fontWeight: 700, marginTop: 2 }}>ERP sin correo</p>
+                <p className="text-stone" style={{ fontSize: 10 }}>
+                  {kpis.erp_pendiente_sin_correo} pend. · {kpis.erp_saldada_sin_correo} sald.
+                </p>
+              </Card>
+            </Link>
+            <Link href="/conciliacion?tab=conciliadas">
+              <Card style={{ borderColor: "var(--color-success)" }}>
+                <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-success)" }}>
+                  En orden
+                </p>
+                <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{kpis.conciliadas.toLocaleString("es-CO")}</p>
+                <p className="text-ink" style={{ fontSize: 11, fontWeight: 700, marginTop: 2 }}>Conciliadas</p>
+                <p className="text-stone" style={{ fontSize: 10 }}>{kpis.conciliadas_sin_diferencia} sin diferencia</p>
+              </Card>
+            </Link>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-line bg-paper shadow-sm">
+            <ConciliacionTabs
+              active={tab}
+              tabs={[
+                { key: "alertas", label: "Descuentos por perder", count: counts.alertas },
+                { key: "correo-sin-erp", label: "Correo sin ERP", count: counts.correoSinErp },
+                { key: "erp-sin-correo", label: "ERP sin correo", count: counts.erpSinCorreo },
+                { key: "conciliadas", label: "Conciliadas", count: counts.conciliadas },
+              ]}
+            />
+            {content}
+          </div>
+
+          <Card>
+            <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 13 }}>
+              Diferencias detectadas en conciliadas
+            </h2>
+            <p className="text-stone" style={{ fontSize: 10, marginBottom: 10 }}>
+              {kpis.conciliadas.toLocaleString("es-CO")} conciliadas · {totalDiffs - (diffs.find((d) => d.categoria === "SIN_DIFERENCIA")?.n ?? 0)} con diferencia
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {(["SIN_DIFERENCIA", "MENOR", "MODERADA", "CRITICA"] as const).map((cat) => {
+                const row = diffs.find((d) => d.categoria === cat);
+                const info = DIFF_LABELS[cat];
+                return (
+                  <div key={cat} className="rounded-md" style={{ padding: 10, backgroundColor: `color-mix(in srgb, ${info.tone} 12%, var(--color-parchment))` }}>
+                    <p className="num" style={{ fontWeight: 800, fontSize: 18, color: info.tone }}>{row?.n ?? 0}</p>
+                    <p className="text-graphite" style={{ fontSize: 10 }}>{info.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {criticaCount > 0 && (
+              <p className="text-red-deep" style={{ fontSize: 11, marginTop: 10 }}>
+                <strong>Detectado:</strong> {criticaCount} caso(s) crítico(s) con diferencia &gt;5% — probablemente por notas crédito no aplicadas.
+              </p>
+            )}
+          </Card>
+        </>
       )}
     </div>
   );
