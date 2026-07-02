@@ -59,7 +59,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 const tone = row.diferencia_valor === 0 ? "success" : pctDiff < 0.01 ? "warning" : "danger";
                 return (
                   <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                    <td className="px-6 py-3 font-semibold text-ink">{row.proveedor_norm}</td>
+                    <td className="px-6 py-3 font-semibold text-ink">{row.nombre_display}</td>
                     <td className="num px-4 py-3">{row.num_factura_correo}</td>
                     <td className="px-4 py-3 capitalize text-stone">{row.estado_erp}</td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>

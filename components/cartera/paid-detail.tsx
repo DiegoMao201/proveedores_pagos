@@ -1,7 +1,7 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import type { ErpPaid } from "@/lib/cartera-data";
 import { getEmailMatchForInvoiceKey } from "@/lib/cartera-data";
-import { formatCurrency, formatDateEs } from "@/lib/format";
+import { formatCurrency, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -17,7 +17,7 @@ export async function PaidDetail({ row }: { row: ErpPaid }) {
 
   return (
     <div>
-      <Field label="Proveedor (ERP)" value={row.nombre_proveedor_erp} />
+      <Field label="Proveedor (ERP)" value={humanizeProviderName(row.nombre_proveedor_erp)} />
       <Field label="Serie" value={row.serie} />
       <Field label="Número de entrada" value={row.num_entrada} />
       <Field label="Número de factura" value={row.num_factura} />

@@ -5,7 +5,7 @@ import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { TablePagination } from "@/components/data-table/table-pagination";
 import { PaidDetail } from "@/components/cartera/paid-detail";
 import { getPaid, getPaidByKey, type ErpPaid } from "@/lib/cartera-data";
-import { formatCurrency, formatCompact, formatDateEs } from "@/lib/format";
+import { formatCurrency, formatCompact, formatDateEs, humanizeProviderName } from "@/lib/format";
 import { CarteraTabs } from "@/components/cartera/cartera-tabs";
 
 interface PageProps {
@@ -114,7 +114,7 @@ export default async function CarteraSaldadaPage({ searchParams }: PageProps) {
                           href={`/cartera/saldada?${new URLSearchParams({ ...sp, factura: row.invoice_key } as Record<string, string>).toString()}`}
                           className="block font-semibold text-ink hover:text-red"
                         >
-                          {row.nombre_proveedor_erp}
+                          {humanizeProviderName(row.nombre_proveedor_erp)}
                         </a>
                       </td>
                       <td className="num px-4 py-3">{row.num_factura}</td>

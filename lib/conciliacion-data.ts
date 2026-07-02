@@ -4,7 +4,7 @@ import { calculateCapturableDiscounts } from "@/lib/discount-rules";
 
 export interface ReconciledRow {
   invoice_key: string;
-  proveedor_norm: string | null;
+  nombre_display: string | null;
   num_factura_correo: string;
   valor_total_correo: number;
   fecha_emision_correo: string | null;

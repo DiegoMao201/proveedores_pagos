@@ -15,16 +15,9 @@ import {
 } from "@/lib/dashboard-data";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, formatTodayEs } from "@/lib/format";
 
 export const revalidate = 300; // 5 minutos (E.: auto-refresh de KPIs)
-
-const GREETING_DATE_FORMAT = new Intl.DateTimeFormat("es-CO", {
-  timeZone: "America/Bogota",
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
 
 function firstName(name: string | null | undefined, email: string) {
   if (name) return name.split(" ")[0];
@@ -51,7 +44,7 @@ export default async function DashboardPage() {
   const session = await auth();
   const role = session?.user.role ?? "gerencia";
   const email = session?.user.email ?? "";
-  const today = GREETING_DATE_FORMAT.format(new Date());
+  const today = formatTodayEs();
 
   const canSeeOperativeActions = role === "tesoreria" || role === "admin";
   const isContabilidad = role === "contabilidad" || role === "admin";
@@ -86,8 +79,8 @@ export default async function DashboardPage() {
         <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
           {greetingByHour()}, {firstName(session?.user.name, email)}.
         </h1>
-        <p className="text-graphite capitalize" style={{ fontSize: 12 }}>
-          Hoy es {today}.
+        <p className="text-graphite" style={{ fontSize: 12 }}>
+          {today}.
         </p>
       </div>
 
