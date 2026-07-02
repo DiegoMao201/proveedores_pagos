@@ -52,7 +52,9 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       accessTokenExpires: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
       error: undefined,
     };
-  } catch {
+  } catch (err) {
+    // No silenciar: un refresh fallido sin rastro es indetectable en produccion.
+    console.error("[auth] refreshAccessToken failed:", err instanceof Error ? err.message : err);
     return { ...token, error: "RefreshAccessTokenError" as const };
   }
 }
@@ -140,6 +142,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // de devolver el token, para que ninguna llamada a PostgREST reciba un JWT
       // expirado.
       if (token.accessTokenExpires && Date.now() < token.accessTokenExpires - 30_000) {
+        return token;
+      }
+
+      // Bug real encontrado al verificar empiricamente el fix anterior: este
+      // callback jwt corre DOS VECES por request -- una en proxy.ts (middleware,
+      // Edge Runtime, solo necesita saber si hay sesion) y otra en los Server
+      // Components (Node runtime, donde SI se usa el accessToken contra
+      // PostgREST). Si el refresh (que revoca el refresh token viejo) corria en
+      // ambos, el segundo intento fallaba porque el primero ya habia revocado el
+      // token que el segundo todavia tenia en su copia del JWT. En Edge basta con
+      // que exista una sesion (proxy.ts solo chequea "!!req.auth"), asi que ahi se
+      // deja el token tal cual (sin refrescar) y el refresh real ocurre una sola
+      // vez, del lado de Node.
+      if (process.env.NEXT_RUNTIME === "edge") {
         return token;
       }
       return refreshAccessToken(token);
