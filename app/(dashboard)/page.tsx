@@ -13,6 +13,7 @@ import {
   getPaymentRunway,
   type DashboardKpis,
 } from "@/lib/dashboard-data";
+import { getRebateDashboardSummary, type RebateSummary } from "@/lib/rebate-data";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
 import { formatCompact, formatTodayEs } from "@/lib/format";
@@ -34,12 +35,6 @@ function greetingByHour(): string {
   return "Buenas noches";
 }
 
-const REBATE_PROVIDERS = [
-  { name: "Pintuco", href: "/rebate/pintuco", cycle: "Trimestral" },
-  { name: "Abracol", href: "/rebate/abracol", cycle: "Bimestral" },
-  { name: "Goya", href: "/rebate/goya", cycle: "Semestral" },
-];
-
 export default async function DashboardPage() {
   const session = await auth();
   const role = session?.user.role ?? "gerencia";
@@ -60,6 +55,7 @@ export default async function DashboardPage() {
   };
   let runway = { d7: 0, d15: 0, d30: 0 };
   let dataError: string | null = null;
+  let rebateSummary: RebateSummary[] = [];
 
   try {
     [kpis, aging, heatmapDays, discounts, runway] = await Promise.all([
@@ -71,6 +67,12 @@ export default async function DashboardPage() {
     ]);
   } catch (error) {
     dataError = error instanceof Error ? error.message : "Error desconocido";
+  }
+
+  try {
+    rebateSummary = await getRebateDashboardSummary();
+  } catch {
+    rebateSummary = [];
   }
 
   return (
@@ -224,20 +226,39 @@ export default async function DashboardPage() {
           Progreso de rebates
         </h2>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {REBATE_PROVIDERS.map((provider) => (
+          {(rebateSummary.length > 0
+            ? rebateSummary
+            : [
+                { provider: "pintuco", label: "Pintuco", cycle: "Trimestral", href: "/rebate/pintuco" },
+                { provider: "abracol", label: "Abracol", cycle: "Bimestral", href: "/rebate/abracol" },
+                { provider: "goya", label: "Goya", cycle: "Semestral", href: "/rebate/goya" },
+              ]
+          ).map((provider) => (
             <Link
-              key={provider.name}
+              key={provider.provider}
               href={provider.href}
               className="group flex flex-col justify-between border border-line bg-parchment transition-colors hover:border-red hover:bg-cream-soft"
               style={{ borderRadius: 8, padding: 10 }}
             >
               <div>
-                <p className="text-ink" style={{ fontWeight: 700, fontSize: 12 }}>
-                  {provider.name}
-                </p>
-                <p className="text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  {provider.cycle}
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-ink" style={{ fontWeight: 700, fontSize: 12 }}>
+                    {provider.label}
+                  </p>
+                  <p className="text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {provider.cycle}
+                  </p>
+                </div>
+                {"gananciaAcumulada" in provider && (
+                  <p className="num text-ink" style={{ fontWeight: 800, fontSize: 15, marginTop: 4 }}>
+                    {formatCompact(provider.gananciaAcumulada)}
+                  </p>
+                )}
+                {"currentPeriodLabel" in provider && (
+                  <p className="text-stone" style={{ fontSize: 10, marginTop: 2 }}>
+                    {provider.currentPeriodLabel} · {provider.currentPeriodPct ?? 0}% de escala
+                  </p>
+                )}
               </div>
               <span
                 className="flex items-center gap-1 text-red-deep opacity-0 transition-opacity group-hover:opacity-100"
