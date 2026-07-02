@@ -187,6 +187,7 @@ export default async function RebatePintucoPage() {
                 <th className="px-3 py-2 text-right">Faltante E2</th>
                 <th className="px-3 py-2 text-left">Escala</th>
                 <th className="px-3 py-2 text-left">Estado</th>
+                <th className="px-3 py-2 text-left">Cartera</th>
                 <th className="px-3 py-2 text-right">Rebate mensual</th>
               </tr>
             </thead>
@@ -206,7 +207,10 @@ export default async function RebatePintucoPage() {
                     <ScalePill value={m.escala_lograda} />
                   </td>
                   <td className="px-3 py-2">
-                    <ScalePill value={m.cartera_riesgo ? "NO_CUMPLIDO" : m.estado_mes} />
+                    <ScalePill value={m.estado_mes} />
+                  </td>
+                  <td className="px-3 py-2">
+                    {m.cartera_riesgo ? <ScalePill value="CARTERA_RIESGO" /> : <span className="text-stone">—</span>}
                   </td>
                   <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.rebate_mensual_ganado)}</td>
                 </tr>

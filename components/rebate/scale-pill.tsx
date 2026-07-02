@@ -12,6 +12,7 @@ const CONFIG: Record<string, { label: string; className: string }> = {
   ABIERTO: { label: "En curso", className: "bg-info/10 text-info" },
   CUMPLIDO: { label: "Cumplido", className: "bg-success/10 text-success" },
   NO_CUMPLIDO: { label: "No cumplido", className: "bg-red/10 text-red-deep" },
+  CARTERA_RIESGO: { label: "Cartera pendiente", className: "bg-orange/15 text-orange" },
 };
 
 export function ScalePill({ value }: { value: string }) {
