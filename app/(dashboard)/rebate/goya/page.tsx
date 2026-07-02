@@ -4,18 +4,22 @@ import { KPICard } from "@/components/ui/kpi-card";
 import { RebateTabs } from "@/components/layout/rebate-tabs";
 import { PeriodProgressGrid } from "@/components/rebate/period-progress";
 import { ScalePill } from "@/components/rebate/scale-pill";
+import { SectionTabs } from "@/components/rebate/section-tabs";
+import { StackedBarChart } from "@/components/rebate/stacked-bar-chart";
+import { InvoiceTable } from "@/components/rebate/invoice-table";
 import { GoyaSimulator } from "@/components/rebate/simulator";
 import { formatCompact, formatDateEs } from "@/lib/format";
-import { getGoyaSemester } from "@/lib/rebate-data";
+import { getGoyaSemester, getGoyaInvoices } from "@/lib/rebate-data";
 
 export const revalidate = 300;
 
 export default async function RebateGoyaPage() {
   let error: string | null = null;
   let semestres: Awaited<ReturnType<typeof getGoyaSemester>> = [];
+  let invoices: Awaited<ReturnType<typeof getGoyaInvoices>> = [];
 
   try {
-    semestres = await getGoyaSemester();
+    [semestres, invoices] = await Promise.all([getGoyaSemester(), getGoyaInvoices()]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Error desconocido";
   }
@@ -52,6 +56,119 @@ export default async function RebateGoyaPage() {
     progressPct: Math.max(0, Math.min(100, ((s.pct_crecimiento ?? 0) / 50) * 100)),
     status: s.cartera_vencida ? "NO_CUMPLIDO" : s.escala_lograda,
   }));
+
+  const direccionTab = (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <KPICard
+          label="Ventas 2026 facturadas"
+          value={formatCompact(ventasAcumuladas)}
+          tone="info"
+          trend={{ direction: "up", label: `Crecimiento consolidado: ${baseTotal > 0 ? Math.round((ventasAcumuladas / baseTotal - 1) * 100) : 0}%` }}
+        />
+        <KPICard
+          label={`Semestre actual (${current?.periodo ?? "—"})`}
+          value={current?.escala_lograda === "SIN_ESCALA" ? "Sin escala" : current?.escala_lograda.replace("ESCALA_", "") + "%"}
+          tone={current?.escala_lograda === "SIN_ESCALA" ? "orange" : "success"}
+          trend={{ direction: "up", label: `Siguiente meta: ${current?.siguiente_meta ?? "—"}` }}
+        />
+        <KPICard
+          label="Rebate ganado"
+          value={formatCompact(rebateTotal)}
+          tone="success"
+          trend={{ direction: "up", label: "Pagadero en producto según acuerdo" }}
+        />
+        <KPICard
+          label="Bloqueado cartera vencida"
+          value={formatCompact(rebateBloqueadoCartera)}
+          tone="yellow"
+          trend={{ direction: rebateBloqueadoCartera > 0 ? "down" : "up", label: rebateBloqueadoCartera > 0 ? "Gate contractual activo" : "Sin bloqueo" }}
+        />
+      </div>
+
+      <Card>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 10 }}>
+          Crecimiento vs. base 2025
+        </h2>
+        <StackedBarChart
+          series={[
+            { key: "base", label: "Base 2025", color: "var(--color-line)" },
+            { key: "crecimiento", label: "Crecimiento 2026", color: "var(--color-red)" },
+          ]}
+          data={semestres.map((s) => ({
+            category: s.periodo.replace("SEMESTRE", "S"),
+            values: { base: s.base_2025, crecimiento: Math.max(s.venta_lograda - s.base_2025, 0) },
+          }))}
+        />
+      </Card>
+
+      <Card>
+        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+          Lectura ejecutiva
+        </p>
+        <p className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.6 }}>
+          Cada semestre 2026 se compara contra su propia base 2025, determinando la escala de crecimiento lograda y
+          el rebate correspondiente sobre la venta facturada. A diferencia del tablero anterior, aquí sí se aplica el
+          gate contractual real: si Ferreinox tiene cartera vencida con Goya al momento de liquidar, el rebate del
+          periodo queda en $0 aunque la escala se haya alcanzado — la cifra que se habría ganado sin esa condición
+          queda visible como referencia.
+        </p>
+      </Card>
+    </div>
+  );
+
+  const semestresTab = (
+    <Card className="!p-0 overflow-hidden">
+      <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
+        <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Seguimiento semestral
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full" style={{ fontSize: 11 }}>
+          <thead>
+            <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <th className="px-3 py-2 text-left">Semestre</th>
+              <th className="px-3 py-2 text-left">Vigencia</th>
+              <th className="px-3 py-2 text-right">Base 2025</th>
+              <th className="px-3 py-2 text-right">Ventas 2026</th>
+              <th className="px-3 py-2 text-right">Crecimiento</th>
+              <th className="px-3 py-2 text-right">Meta 20%</th>
+              <th className="px-3 py-2 text-right">Meta 50%</th>
+              <th className="px-3 py-2 text-left">Escala</th>
+              <th className="px-3 py-2 text-right">Rebate ganado</th>
+              <th className="px-3 py-2 text-left">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {semestres.map((s) => (
+              <tr key={s.periodo} className="border-b border-line last:border-0">
+                <td className="px-3 py-2 font-semibold text-ink">{s.periodo.replace("SEMESTRE", "Semestre")}</td>
+                <td className="px-3 py-2 text-stone">
+                  {formatDateEs(s.inicio)} – {formatDateEs(s.fin)}
+                </td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(s.base_2025)}</td>
+                <td className="num px-3 py-2 text-right text-ink">{formatCompact(s.venta_lograda)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{s.pct_crecimiento ?? 0}%</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(s.meta_20)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(s.meta_50)}</td>
+                <td className="px-3 py-2">
+                  <ScalePill value={s.escala_lograda} />
+                </td>
+                <td className="num px-3 py-2 text-right text-ink">
+                  {formatCompact(s.rebate_ganado)}
+                  {s.cartera_vencida && <span className="ml-1 text-red-deep">•</span>}
+                </td>
+                <td className="px-3 py-2">
+                  <ScalePill value={s.cartera_vencida ? "NO_CUMPLIDO" : s.estado_periodo} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,92 +215,13 @@ export default async function RebateGoyaPage() {
         <PeriodProgressGrid items={periodCards} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <KPICard
-          label="Ventas 2026 facturadas"
-          value={formatCompact(ventasAcumuladas)}
-          tone="info"
-          trend={{ direction: "up", label: `Crecimiento consolidado: ${baseTotal > 0 ? Math.round((ventasAcumuladas / baseTotal - 1) * 100) : 0}%` }}
-        />
-        <KPICard
-          label={`Semestre actual (${current?.periodo ?? "—"})`}
-          value={current?.escala_lograda === "SIN_ESCALA" ? "Sin escala" : current?.escala_lograda.replace("ESCALA_", "") + "%"}
-          tone={current?.escala_lograda === "SIN_ESCALA" ? "orange" : "success"}
-          trend={{ direction: "up", label: `Siguiente meta: ${current?.siguiente_meta ?? "—"}` }}
-        />
-        <KPICard
-          label="Rebate ganado"
-          value={formatCompact(rebateTotal)}
-          tone="success"
-          trend={{ direction: "up", label: "Pagadero en producto según acuerdo" }}
-        />
-        <KPICard
-          label="Bloqueado cartera vencida"
-          value={formatCompact(rebateBloqueadoCartera)}
-          tone="yellow"
-          trend={{ direction: rebateBloqueadoCartera > 0 ? "down" : "up", label: rebateBloqueadoCartera > 0 ? "Gate contractual activo" : "Sin bloqueo" }}
-        />
-      </div>
-
-      <Card className="!p-0 overflow-hidden">
-        <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
-          <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Seguimiento semestral
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ fontSize: 11 }}>
-            <thead>
-              <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                <th className="px-3 py-2 text-left">Semestre</th>
-                <th className="px-3 py-2 text-left">Vigencia</th>
-                <th className="px-3 py-2 text-right">Base 2025</th>
-                <th className="px-3 py-2 text-right">Ventas 2026</th>
-                <th className="px-3 py-2 text-right">Crecimiento</th>
-                <th className="px-3 py-2 text-left">Escala</th>
-                <th className="px-3 py-2 text-right">Rebate ganado</th>
-                <th className="px-3 py-2 text-left">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {semestres.map((s) => (
-                <tr key={s.periodo} className="border-b border-line last:border-0">
-                  <td className="px-3 py-2 font-semibold text-ink">{s.periodo.replace("SEMESTRE", "Semestre")}</td>
-                  <td className="px-3 py-2 text-stone">
-                    {formatDateEs(s.inicio)} – {formatDateEs(s.fin)}
-                  </td>
-                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(s.base_2025)}</td>
-                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(s.venta_lograda)}</td>
-                  <td className="num px-3 py-2 text-right text-stone">{s.pct_crecimiento ?? 0}%</td>
-                  <td className="px-3 py-2">
-                    <ScalePill value={s.escala_lograda} />
-                  </td>
-                  <td className="num px-3 py-2 text-right text-ink">
-                    {formatCompact(s.rebate_ganado)}
-                    {s.cartera_vencida && <span className="ml-1 text-red-deep">•</span>}
-                  </td>
-                  <td className="px-3 py-2">
-                    <ScalePill value={s.cartera_vencida ? "NO_CUMPLIDO" : s.estado_periodo} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <Card>
-        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-          Lectura ejecutiva
-        </p>
-        <p className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.6 }}>
-          Cada semestre 2026 se compara contra su propia base 2025, determinando la escala de crecimiento lograda y
-          el rebate correspondiente sobre la venta facturada. A diferencia del tablero anterior, aquí sí se aplica el
-          gate contractual real: si Ferreinox tiene cartera vencida con Goya al momento de liquidar, el rebate del
-          periodo queda en $0 aunque la escala se haya alcanzado — la cifra que se habría ganado sin esa condición
-          queda visible como referencia.
-        </p>
-      </Card>
+      <SectionTabs
+        tabs={[
+          { key: "direccion", label: "Dirección", content: direccionTab },
+          { key: "semestres", label: "Semestres", content: semestresTab },
+          { key: "facturas", label: "Facturas y fuente", content: <InvoiceTable rows={invoices} limit={150} /> },
+        ]}
+      />
 
       {current && <GoyaSimulator base2025={current.base_2025} />}
     </div>

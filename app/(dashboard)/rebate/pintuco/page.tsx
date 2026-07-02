@@ -4,6 +4,9 @@ import { KPICard } from "@/components/ui/kpi-card";
 import { RebateTabs } from "@/components/layout/rebate-tabs";
 import { PeriodProgressGrid } from "@/components/rebate/period-progress";
 import { ScalePill } from "@/components/rebate/scale-pill";
+import { SectionTabs } from "@/components/rebate/section-tabs";
+import { StackedBarChart } from "@/components/rebate/stacked-bar-chart";
+import { InvoiceTable } from "@/components/rebate/invoice-table";
 import { PintucoSimulator } from "@/components/rebate/simulator";
 import { formatCompact, formatDateEs } from "@/lib/format";
 import {
@@ -11,6 +14,7 @@ import {
   getPintucoQuarterly,
   getPintucoSeasonality,
   getPintucoRecomposition,
+  getPintucoInvoices,
 } from "@/lib/rebate-data";
 
 export const revalidate = 300;
@@ -25,13 +29,15 @@ export default async function RebatePintucoPage() {
   let quarterly: Awaited<ReturnType<typeof getPintucoQuarterly>> = [];
   let seasonality: Awaited<ReturnType<typeof getPintucoSeasonality>> = [];
   let recomposition: Awaited<ReturnType<typeof getPintucoRecomposition>> = null;
+  let invoices: Awaited<ReturnType<typeof getPintucoInvoices>> = [];
 
   try {
-    [monthly, quarterly, seasonality, recomposition] = await Promise.all([
+    [monthly, quarterly, seasonality, recomposition, invoices] = await Promise.all([
       getPintucoMonthly(),
       getPintucoQuarterly(),
       getPintucoSeasonality(),
       getPintucoRecomposition(),
+      getPintucoInvoices(),
     ]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Error desconocido";
@@ -75,43 +81,8 @@ export default async function RebatePintucoPage() {
     status: q.escala_lograda_trimestre,
   }));
 
-  return (
+  const direccionTab = (
     <div className="flex flex-col gap-3">
-      <div>
-        <h1 className="text-ink" style={{ fontWeight: 800, fontSize: 19 }}>
-          Rebate Pintuco
-        </h1>
-        <p className="text-stone" style={{ fontSize: 11 }}>
-          Ciclo abril–diciembre 2026 · seguimiento mensual, trimestral y estacionalidad, con recomposición a 9 meses.
-        </p>
-      </div>
-
-      <RebateTabs active="pintuco" />
-
-      <Card className="bg-parchment">
-        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-          Reglas comerciales activas
-        </p>
-        <ul className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.7 }}>
-          <li>1. La base del cálculo es la compra neta menos el 12% excluido; el rebate corre sobre el 88%.</li>
-          <li>2. Cada mes compara contra Escala 1 (1,0%) y Escala 2 (1,5%); el trimestre contra 1,0% y 2,5%.</li>
-          <li>
-            3. Estacionalidad: si al cierre del corte del mes (
-            {currentSeasonality ? formatDateEs(currentSeasonality.corte_estacionalidad) : "—"}) se alcanza el 90% de
-            Escala 2, se gana un bono adicional de 1,0%.
-          </li>
-          <li>4. La recomposición separa el saldo elegible del saldo bloqueado por cartera (85% del elegible, a 9 meses).</li>
-          <li>5. Notas crédito se restan de la venta lograda de cada mes.</li>
-        </ul>
-      </Card>
-
-      <div>
-        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>
-          Ganado por trimestre
-        </h2>
-        <PeriodProgressGrid items={quarterCards} />
-      </div>
-
       <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
         <KPICard
           label="Compra aplicable acumulada"
@@ -178,44 +149,6 @@ export default async function RebatePintucoPage() {
         />
       </div>
 
-      <Card className="!p-0 overflow-hidden">
-        <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
-          <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Mes a mes
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ fontSize: 11 }}>
-            <thead>
-              <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                <th className="px-3 py-2 text-left">Mes</th>
-                <th className="px-3 py-2 text-right">Compra aplicable</th>
-                <th className="px-3 py-2 text-right">% a Escala 2</th>
-                <th className="px-3 py-2 text-left">Escala</th>
-                <th className="px-3 py-2 text-right">Rebate mensual</th>
-                <th className="px-3 py-2 text-left">Cartera</th>
-              </tr>
-            </thead>
-            <tbody>
-              {monthly.map((m) => (
-                <tr key={m.mes} className="border-b border-line last:border-0">
-                  <td className="px-3 py-2 font-semibold text-ink">{m.mes}</td>
-                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.venta_lograda)}</td>
-                  <td className="num px-3 py-2 text-right text-stone">{m.pct_a_escala_2 ?? 0}%</td>
-                  <td className="px-3 py-2">
-                    <ScalePill value={m.escala_lograda} />
-                  </td>
-                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.rebate_mensual_ganado)}</td>
-                  <td className="px-3 py-2">
-                    {m.cartera_riesgo ? <ScalePill value="NO_CUMPLIDO" /> : <span className="text-stone">—</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
       <Card>
         <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
           Lectura ejecutiva
@@ -228,6 +161,278 @@ export default async function RebatePintucoPage() {
           fuera del cálculo elegible y se muestra como bloqueado, sin proporcionalidad ni umbral de días.
         </p>
       </Card>
+    </div>
+  );
+
+  const mesAMesTab = (
+    <div className="flex flex-col gap-3">
+      <Card className="!p-0 overflow-hidden">
+        <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
+          <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Resumen ejecutivo del ciclo
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ fontSize: 11 }}>
+            <thead>
+              <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <th className="px-3 py-2 text-left">Mes</th>
+                <th className="px-3 py-2 text-left">Trim.</th>
+                <th className="px-3 py-2 text-right">Compra neta</th>
+                <th className="px-3 py-2 text-right">12% excluido</th>
+                <th className="px-3 py-2 text-right">88% aplicable</th>
+                <th className="px-3 py-2 text-right">Meta E1</th>
+                <th className="px-3 py-2 text-right">Meta E2</th>
+                <th className="px-3 py-2 text-right">Faltante E1</th>
+                <th className="px-3 py-2 text-right">Faltante E2</th>
+                <th className="px-3 py-2 text-left">Escala</th>
+                <th className="px-3 py-2 text-left">Estado</th>
+                <th className="px-3 py-2 text-right">Rebate mensual</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthly.map((m) => (
+                <tr key={m.mes} className="border-b border-line last:border-0">
+                  <td className="px-3 py-2 font-semibold text-ink">{m.mes}</td>
+                  <td className="px-3 py-2 text-stone">{m.trimestre}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.compra_neta)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.excluido_12)}</td>
+                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.venta_lograda)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.escala_1)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.escala_2)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.faltante_escala_1)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.faltante_escala_2)}</td>
+                  <td className="px-3 py-2">
+                    <ScalePill value={m.escala_lograda} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <ScalePill value={m.cartera_riesgo ? "NO_CUMPLIDO" : m.estado_mes} />
+                  </td>
+                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.rebate_mensual_ganado)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 2 }}>
+          Compra neta por mes
+        </h2>
+        <p className="text-stone" style={{ fontSize: 10, marginBottom: 10 }}>
+          88% aplicable al rebate (rojo) vs. 12% excluido (gris).
+        </p>
+        <StackedBarChart
+          series={[
+            { key: "aplicable", label: "88% aplicable", color: "var(--color-red)" },
+            { key: "excluido", label: "12% excluido", color: "var(--color-line)" },
+          ]}
+          data={monthly.map((m) => ({
+            category: m.mes.slice(0, 3),
+            values: { aplicable: m.venta_lograda, excluido: m.excluido_12 },
+          }))}
+        />
+      </Card>
+    </div>
+  );
+
+  const trimestreTab = (
+    <div className="flex flex-col gap-3">
+      <Card className="!p-0 overflow-hidden">
+        <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
+          <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Cumplimiento trimestral y recuperación
+          </h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ fontSize: 11 }}>
+            <thead>
+              <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                <th className="px-3 py-2 text-left">Trimestre</th>
+                <th className="px-3 py-2 text-right">Compra aplicable</th>
+                <th className="px-3 py-2 text-right">Meta E1</th>
+                <th className="px-3 py-2 text-right">Meta E2</th>
+                <th className="px-3 py-2 text-right">Faltante E1</th>
+                <th className="px-3 py-2 text-right">Faltante E2</th>
+                <th className="px-3 py-2 text-left">Escala</th>
+                <th className="px-3 py-2 text-left">Estado</th>
+                <th className="px-3 py-2 text-right">% Rebate</th>
+                <th className="px-3 py-2 text-right">Rebate ganado</th>
+                <th className="px-3 py-2 text-right">Recup. cartera al día</th>
+                <th className="px-3 py-2 text-right">Bloqueado cartera</th>
+              </tr>
+            </thead>
+            <tbody>
+              {quarterly.map((q) => (
+                <tr key={q.trimestre} className="border-b border-line last:border-0">
+                  <td className="px-3 py-2 font-semibold text-ink">{q.trimestre}</td>
+                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(q.venta_lograda_trimestre)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(q.meta_trimestre_e1)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(q.meta_trimestre_e2)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(q.faltante_e1_trimestre)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(q.faltante_e2_trimestre)}</td>
+                  <td className="px-3 py-2">
+                    <ScalePill value={q.escala_lograda_trimestre} />
+                  </td>
+                  <td className="px-3 py-2">
+                    <ScalePill value={q.estado_trimestre} />
+                  </td>
+                  <td className="num px-3 py-2 text-right text-stone">{(q.rebate_trimestral_pct * 100).toFixed(1)}%</td>
+                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(q.rebate_trimestral_ganado)}</td>
+                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(q.recomposicion_trimestral_recuperable)}</td>
+                  <td className="num px-3 py-2 text-right text-orange">{formatCompact(q.recomposicion_trimestral_bloqueada)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 10 }}>
+          Composición del rebate por trimestre
+        </h2>
+        <StackedBarChart
+          series={[
+            { key: "ganado", label: "Rebate trimestral ganado", color: "var(--color-red-deep)" },
+            { key: "recuperable", label: "Recomposición recuperable", color: "var(--color-red)" },
+            { key: "bloqueada", label: "Recomposición bloqueada por cartera", color: "var(--color-line)" },
+          ]}
+          data={quarterly.map((q) => ({
+            category: q.trimestre,
+            values: {
+              ganado: q.rebate_trimestral_ganado,
+              recuperable: q.recomposicion_trimestral_recuperable,
+              bloqueada: q.recomposicion_trimestral_bloqueada,
+            },
+          }))}
+        />
+      </Card>
+
+      <Card>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 8 }}>
+          Recomposición 9 meses (ciclo completo)
+        </h2>
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <KPICard
+            label="Meta ciclo E2"
+            value={formatCompact(recomposition.meta_ciclo_e2)}
+            tone="info"
+            trend={{ direction: "up", label: `Acumulado hoy: ${recomposition.pct_acumulado_e2 ?? 0}%` }}
+          />
+          <KPICard
+            label="Recuperable (85% del elegible)"
+            value={formatCompact(recomposition.recomposicion_9m_proyectada)}
+            tone="success"
+            trend={{ direction: "up", label: "Sin cartera pendiente en el mes" }}
+          />
+          <KPICard
+            label="Bloqueada por cartera"
+            value={formatCompact(recomposition.recomposicion_9m_bloqueada)}
+            tone="yellow"
+            trend={{ direction: recomposition.recomposicion_9m_bloqueada > 0 ? "down" : "up", label: "Bloqueo binario, sin proporcionalidad" }}
+          />
+          <KPICard
+            label="Días restantes del ciclo"
+            value={`${recomposition.dias_restantes_ciclo} días`}
+            tone="orange"
+            trend={{
+              direction: "down",
+              label: `Ritmo requerido: ${formatCompact(recomposition.ritmo_diario_requerido ?? 0)}/día`,
+            }}
+          />
+        </div>
+      </Card>
+    </div>
+  );
+
+  const estacionalidadTab = (
+    <Card className="!p-0 overflow-hidden">
+      <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
+        <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Estacionalidad por mes
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full" style={{ fontSize: 11 }}>
+          <thead>
+            <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <th className="px-3 py-2 text-left">Mes</th>
+              <th className="px-3 py-2 text-left">Corte</th>
+              <th className="px-3 py-2 text-right">Venta pre-corte</th>
+              <th className="px-3 py-2 text-right">Meta Escala 2</th>
+              <th className="px-3 py-2 text-right">% pre-corte</th>
+              <th className="px-3 py-2 text-left">Bono aplica</th>
+              <th className="px-3 py-2 text-right">Bono (1,0%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {seasonality.map((s) => (
+              <tr key={s.mes} className="border-b border-line last:border-0">
+                <td className="px-3 py-2 font-semibold text-ink">{s.mes}</td>
+                <td className="px-3 py-2 text-stone">{formatDateEs(s.corte_estacionalidad)}</td>
+                <td className="num px-3 py-2 text-right text-ink">{formatCompact(s.venta_pre_corte)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(s.escala_2)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{s.pct_pre_corte ?? 0}%</td>
+                <td className="px-3 py-2">
+                  <ScalePill value={s.bono_aplica ? "CUMPLIDO" : "SIN_ESCALA"} />
+                </td>
+                <td className="num px-3 py-2 text-right text-ink">{formatCompact(s.bono_valor)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h1 className="text-ink" style={{ fontWeight: 800, fontSize: 19 }}>
+          Rebate Pintuco
+        </h1>
+        <p className="text-stone" style={{ fontSize: 11 }}>
+          Ciclo abril–diciembre 2026 · seguimiento mensual, trimestral y estacionalidad, con recomposición a 9 meses.
+        </p>
+      </div>
+
+      <RebateTabs active="pintuco" />
+
+      <Card className="bg-parchment">
+        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+          Reglas comerciales activas
+        </p>
+        <ul className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.7 }}>
+          <li>1. La base del cálculo es la compra neta menos el 12% excluido; el rebate corre sobre el 88%.</li>
+          <li>2. Cada mes compara contra Escala 1 (1,0%) y Escala 2 (1,5%); el trimestre contra 1,0% y 2,5%.</li>
+          <li>
+            3. Estacionalidad: si al cierre del corte del mes (
+            {currentSeasonality ? formatDateEs(currentSeasonality.corte_estacionalidad) : "—"}) se alcanza el 90% de
+            Escala 2, se gana un bono adicional de 1,0%.
+          </li>
+          <li>4. La recomposición separa el saldo elegible del saldo bloqueado por cartera (85% del elegible, a 9 meses).</li>
+          <li>5. Notas crédito se restan de la venta lograda de cada mes.</li>
+        </ul>
+      </Card>
+
+      <div>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>
+          Ganado por trimestre
+        </h2>
+        <PeriodProgressGrid items={quarterCards} />
+      </div>
+
+      <SectionTabs
+        tabs={[
+          { key: "direccion", label: "Dirección", content: direccionTab },
+          { key: "mes-a-mes", label: "Mes a mes", content: mesAMesTab },
+          { key: "trimestre", label: "Trimestre y recomposición", content: trimestreTab },
+          { key: "estacionalidad", label: "Estacionalidad", content: estacionalidadTab },
+          { key: "facturas", label: "Facturas y fuente", content: <InvoiceTable rows={invoices} limit={150} /> },
+        ]}
+      />
 
       {currentMonth && currentQuarter && (
         <PintucoSimulator

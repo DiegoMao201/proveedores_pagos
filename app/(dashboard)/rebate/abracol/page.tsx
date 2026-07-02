@@ -4,18 +4,22 @@ import { KPICard } from "@/components/ui/kpi-card";
 import { RebateTabs } from "@/components/layout/rebate-tabs";
 import { PeriodProgressGrid } from "@/components/rebate/period-progress";
 import { ScalePill } from "@/components/rebate/scale-pill";
+import { SectionTabs } from "@/components/rebate/section-tabs";
+import { StackedBarChart } from "@/components/rebate/stacked-bar-chart";
+import { InvoiceTable } from "@/components/rebate/invoice-table";
 import { AbracolSimulator } from "@/components/rebate/simulator";
 import { formatCompact, formatDateEs } from "@/lib/format";
-import { getAbracolBimester } from "@/lib/rebate-data";
+import { getAbracolBimester, getAbracolInvoices } from "@/lib/rebate-data";
 
 export const revalidate = 300;
 
 export default async function RebateAbracolPage() {
   let error: string | null = null;
   let bimestres: Awaited<ReturnType<typeof getAbracolBimester>> = [];
+  let invoices: Awaited<ReturnType<typeof getAbracolInvoices>> = [];
 
   try {
-    bimestres = await getAbracolBimester();
+    [bimestres, invoices] = await Promise.all([getAbracolBimester(), getAbracolInvoices()]);
   } catch (e) {
     error = e instanceof Error ? e.message : "Error desconocido";
   }
@@ -52,6 +56,115 @@ export default async function RebateAbracolPage() {
     status: b.estado_periodo,
   }));
 
+  const direccionTab = (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+        <KPICard
+          label="Ventas 2026 facturadas"
+          value={formatCompact(ventasAcumuladas)}
+          tone="info"
+          trend={{ direction: "up", label: `Cumplimiento anual: ${metaTotal > 0 ? Math.round((ventasAcumuladas / metaTotal) * 100) : 0}%` }}
+        />
+        <KPICard
+          label={`Bimestre actual (${current?.periodo ?? "—"})`}
+          value={formatCompact(current?.venta_lograda ?? 0)}
+          tone="success"
+          trend={{ direction: "up", label: `Cumplimiento meta: ${current?.pct_cumplimiento ?? 0}%` }}
+        />
+        <KPICard
+          label="Rebate bruto estimado"
+          value={formatCompact(rebateTotal)}
+          tone="success"
+          trend={{ direction: "up", label: "Abracol 6,0% antes de IVA" }}
+        />
+        <KPICard
+          label="Rebate bloqueado cartera"
+          value={formatCompact(rebateBloqueado)}
+          tone="yellow"
+          trend={{ direction: rebateBloqueado > 0 ? "down" : "up", label: `Pendiente cartera: ${formatCompact(pendienteTotal)}` }}
+        />
+      </div>
+
+      <Card>
+        <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 10 }}>
+          Ritmo bimestral
+        </h2>
+        <StackedBarChart
+          series={[
+            { key: "venta", label: "Venta lograda", color: "var(--color-red)" },
+            { key: "faltante", label: "Faltante a meta", color: "var(--color-line)" },
+          ]}
+          data={bimestres.map((b) => ({
+            category: b.periodo.replace("BIMESTRE ", "B"),
+            values: { venta: b.venta_lograda, faltante: Math.max(b.meta_2026 - b.venta_lograda, 0) },
+          }))}
+        />
+      </Card>
+
+      <Card>
+        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
+          Lectura ejecutiva
+        </p>
+        <p className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.6 }}>
+          Abracol se liquida contra su cuota bimestral a una tasa plana de 6,0%, sin escalas: la meta solo sirve de
+          referencia de cumplimiento, el rebate se paga sobre toda la venta facturada del periodo. El bloqueado por
+          cartera es informativo — muestra cuánto de ese rebate corresponde a facturas todavía pendientes de pago —
+          y no reduce el rebate bruto reportado.
+        </p>
+      </Card>
+    </div>
+  );
+
+  const bimestresTab = (
+    <Card className="!p-0 overflow-hidden">
+      <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
+        <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+          Seguimiento bimestral
+        </h2>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full" style={{ fontSize: 11 }}>
+          <thead>
+            <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <th className="px-3 py-2 text-left">Bimestre</th>
+              <th className="px-3 py-2 text-left">Vigencia</th>
+              <th className="px-3 py-2 text-right">Ventas 2025</th>
+              <th className="px-3 py-2 text-right">Meta 2026</th>
+              <th className="px-3 py-2 text-right">Ventas actuales</th>
+              <th className="px-3 py-2 text-right">Crecimiento</th>
+              <th className="px-3 py-2 text-right">Faltante meta</th>
+              <th className="px-3 py-2 text-right">Rebate</th>
+              <th className="px-3 py-2 text-right">IVA</th>
+              <th className="px-3 py-2 text-right">Total c/IVA</th>
+              <th className="px-3 py-2 text-left">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {bimestres.map((b) => (
+              <tr key={b.periodo} className="border-b border-line last:border-0">
+                <td className="px-3 py-2 font-semibold text-ink">{b.periodo.replace("BIMESTRE", "Bimestre")}</td>
+                <td className="px-3 py-2 text-stone">
+                  {formatDateEs(b.inicio)} – {formatDateEs(b.fin)}
+                </td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.ventas_2025)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.meta_2026)}</td>
+                <td className="num px-3 py-2 text-right text-ink">{formatCompact(b.venta_lograda)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{b.pct_crecimiento_vs_2025 ?? 0}%</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.faltante_meta)}</td>
+                <td className="num px-3 py-2 text-right text-ink">{formatCompact(b.rebate_actual)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.iva_actual)}</td>
+                <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.total_actual)}</td>
+                <td className="px-3 py-2">
+                  <ScalePill value={b.estado_periodo} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -84,86 +197,13 @@ export default async function RebateAbracolPage() {
         <PeriodProgressGrid items={periodCards} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-        <KPICard
-          label="Ventas 2026 facturadas"
-          value={formatCompact(ventasAcumuladas)}
-          tone="info"
-          trend={{ direction: "up", label: `Cumplimiento anual: ${metaTotal > 0 ? Math.round((ventasAcumuladas / metaTotal) * 100) : 0}%` }}
-        />
-        <KPICard
-          label={`Bimestre actual (${current?.periodo ?? "—"})`}
-          value={formatCompact(current?.venta_lograda ?? 0)}
-          tone="success"
-          trend={{ direction: "up", label: `Cumplimiento meta: ${current?.pct_cumplimiento ?? 0}%` }}
-        />
-        <KPICard
-          label="Rebate bruto estimado"
-          value={formatCompact(rebateTotal)}
-          tone="success"
-          trend={{ direction: "up", label: "Abracol 6,0% antes de IVA" }}
-        />
-        <KPICard
-          label="Rebate bloqueado cartera"
-          value={formatCompact(rebateBloqueado)}
-          tone="yellow"
-          trend={{ direction: rebateBloqueado > 0 ? "down" : "up", label: `Pendiente cartera: ${formatCompact(pendienteTotal)}` }}
-        />
-      </div>
-
-      <Card className="!p-0 overflow-hidden">
-        <div className="border-b border-line bg-parchment" style={{ padding: "8px 14px" }}>
-          <h2 className="text-graphite" style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Seguimiento bimestral
-          </h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ fontSize: 11 }}>
-            <thead>
-              <tr className="border-b border-line text-stone" style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                <th className="px-3 py-2 text-left">Bimestre</th>
-                <th className="px-3 py-2 text-left">Vigencia</th>
-                <th className="px-3 py-2 text-right">Ventas 2025</th>
-                <th className="px-3 py-2 text-right">Meta 2026</th>
-                <th className="px-3 py-2 text-right">Ventas actuales</th>
-                <th className="px-3 py-2 text-right">Rebate</th>
-                <th className="px-3 py-2 text-right">Total c/IVA</th>
-                <th className="px-3 py-2 text-left">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bimestres.map((b) => (
-                <tr key={b.periodo} className="border-b border-line last:border-0">
-                  <td className="px-3 py-2 font-semibold text-ink">{b.periodo.replace("BIMESTRE", "Bimestre")}</td>
-                  <td className="px-3 py-2 text-stone">
-                    {formatDateEs(b.inicio)} – {formatDateEs(b.fin)}
-                  </td>
-                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.ventas_2025)}</td>
-                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.meta_2026)}</td>
-                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(b.venta_lograda)}</td>
-                  <td className="num px-3 py-2 text-right text-ink">{formatCompact(b.rebate_actual)}</td>
-                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(b.total_actual)}</td>
-                  <td className="px-3 py-2">
-                    <ScalePill value={b.estado_periodo} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      <Card>
-        <p className="text-graphite" style={{ fontSize: 11, fontWeight: 700, marginBottom: 4 }}>
-          Lectura ejecutiva
-        </p>
-        <p className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.6 }}>
-          Abracol se liquida contra su cuota bimestral a una tasa plana de 6,0%, sin escalas: la meta solo sirve de
-          referencia de cumplimiento, el rebate se paga sobre toda la venta facturada del periodo. El bloqueado por
-          cartera es informativo — muestra cuánto de ese rebate corresponde a facturas todavía pendientes de pago —
-          y no reduce el rebate bruto reportado.
-        </p>
-      </Card>
+      <SectionTabs
+        tabs={[
+          { key: "direccion", label: "Dirección", content: direccionTab },
+          { key: "bimestres", label: "Bimestres", content: bimestresTab },
+          { key: "facturas", label: "Facturas y fuente", content: <InvoiceTable rows={invoices} limit={150} /> },
+        ]}
+      />
 
       {current && <AbracolSimulator metaBimestre={current.meta_2026} />}
     </div>

@@ -28,6 +28,11 @@ export interface PintucoMonthlyRow {
   tasa_mensual_ganada: number;
   rebate_mensual_ganado: number;
   gap_siguiente_escalon: number;
+  compra_neta: number;
+  excluido_12: number;
+  faltante_escala_1: number;
+  faltante_escala_2: number;
+  estado_mes: "FUTURO" | "CUMPLIDO" | "ABIERTO" | "NO_CUMPLIDO";
 }
 
 export interface PintucoQuarterlyRow {
@@ -40,6 +45,11 @@ export interface PintucoQuarterlyRow {
   rebate_trimestral_ganado: number;
   recomposicion_trimestral_recuperable: number;
   recomposicion_trimestral_bloqueada: number;
+  pct_a_e1_trimestre: number | null;
+  faltante_e1_trimestre: number;
+  faltante_e2_trimestre: number;
+  rebate_trimestral_pct: number;
+  estado_trimestre: "FUTURO" | "CUMPLIDO" | "ABIERTO" | "NO_CUMPLIDO";
 }
 
 export interface PintucoSeasonalityRow {
@@ -136,6 +146,28 @@ export interface GoyaSemesterRow {
 
 export async function getGoyaSemester() {
   return fetchAll<GoyaSemesterRow>("/v_goya_semester?select=*&order=inicio");
+}
+
+export interface RebateInvoiceRow {
+  invoice_key: string;
+  fecha_emision_correo: string;
+  valor_base_correo: number;
+  es_nota_credito: boolean;
+  esta_pendiente: boolean;
+}
+
+const INVOICE_LIST_LIMIT = 150;
+
+export async function getPintucoInvoices() {
+  return fetchAll<RebateInvoiceRow>(`/v_pintuco_base_invoices?select=*&order=fecha_emision_correo.desc&limit=${INVOICE_LIST_LIMIT}`);
+}
+
+export async function getAbracolInvoices() {
+  return fetchAll<RebateInvoiceRow>(`/v_abracol_base_invoices?select=*&order=fecha_emision_correo.desc&limit=${INVOICE_LIST_LIMIT}`);
+}
+
+export async function getGoyaInvoices() {
+  return fetchAll<RebateInvoiceRow>(`/v_goya_base_invoices?select=*&order=fecha_emision_correo.desc&limit=${INVOICE_LIST_LIMIT}`);
 }
 
 export interface RebateSummary {
