@@ -9,7 +9,6 @@ interface KPICardProps {
   label: string;
   value: string;
   trend?: { direction: "up" | "down"; label: string };
-  variant?: "default" | "critical" | "success";
   tone?: Tone;
   icon?: LucideIcon;
   footer?: ReactNode;
@@ -23,7 +22,7 @@ const TONE_STRIPE: Record<Tone, string> = {
   info: "bg-info",
 };
 
-const TONE_BADGE: Record<Tone, string> = {
+const TONE_ICON_BG: Record<Tone, string> = {
   red: "bg-red/10 text-red-deep",
   yellow: "bg-yellow/20 text-graphite",
   orange: "bg-orange/15 text-orange",
@@ -31,37 +30,39 @@ const TONE_BADGE: Record<Tone, string> = {
   info: "bg-info/10 text-info",
 };
 
-export function KPICard({ label, value, trend, variant = "default", tone = "red", icon: Icon, footer }: KPICardProps) {
+export function KPICard({ label, value, trend, tone = "red", icon: Icon, footer }: KPICardProps) {
   return (
-    <Card
-      className={cn(
-        "relative overflow-hidden pt-7",
-        variant === "critical" && "bg-cream border-red",
-        variant === "success" && "border-l-4 border-l-success"
-      )}
-    >
-      <span className={cn("absolute inset-x-0 top-0 h-1.5", TONE_STRIPE[tone])} />
-      <div className="flex items-start justify-between">
-        <p className="text-xs font-bold uppercase tracking-widest text-stone">{label}</p>
+    <Card className="relative overflow-hidden" style={{ paddingTop: 16 }}>
+      <span className={cn("absolute inset-x-0 top-0 h-1", TONE_STRIPE[tone])} />
+      <div className="flex items-start justify-between gap-2">
+        <p
+          className="text-stone"
+          style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+        >
+          {label}
+        </p>
         {Icon && (
-          <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full", TONE_BADGE[tone])}>
-            <Icon size={17} />
+          <span className={cn("flex shrink-0 items-center justify-center rounded-full", TONE_ICON_BG[tone])} style={{ width: 24, height: 24 }}>
+            <Icon size={12} />
           </span>
         )}
       </div>
-      <p className="num mt-3 text-4xl font-extrabold leading-none text-ink">{value}</p>
+      <p className="num text-ink" style={{ fontWeight: 800, fontSize: 21, lineHeight: 1.15, marginTop: 6 }}>
+        {value}
+      </p>
       {trend && (
         <p
           className={cn(
-            "mt-3 flex items-center gap-1 text-sm font-semibold",
+            "flex items-center gap-1",
             trend.direction === "up" ? "text-success" : "text-red-deep"
           )}
+          style={{ fontSize: 10, fontWeight: 600, marginTop: 6 }}
         >
-          {trend.direction === "up" ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+          {trend.direction === "up" ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
           {trend.label}
         </p>
       )}
-      {footer && <div className="mt-4">{footer}</div>}
+      {footer && <div style={{ marginTop: 8 }}>{footer}</div>}
     </Card>
   );
 }

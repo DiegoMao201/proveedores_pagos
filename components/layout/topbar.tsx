@@ -9,30 +9,43 @@ const ROLE_LABELS: Record<string, string> = {
 
 interface TopbarProps {
   email: string;
+  name?: string | null;
   role: string;
   onSignOut: () => Promise<void>;
 }
 
-export function Topbar({ email, role, onSignOut }: TopbarProps) {
+export function Topbar({ email, name, role, onSignOut }: TopbarProps) {
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-line bg-paper px-6 shadow-sm">
+    <header
+      className="flex shrink-0 items-center justify-between border-b border-line bg-paper"
+      style={{ height: 48, padding: "0 20px" }}
+    >
       <div className="flex items-center gap-2">
-        <span className="text-lg font-extrabold text-red">Ferreinox</span>
-        <span className="text-lg font-semibold text-graphite">Pagos Proveedores</span>
+        <span style={{ fontFamily: "var(--font-nunito)", fontWeight: 900, fontSize: 14 }} className="text-red">
+          Ferreinox
+        </span>
+        <span style={{ fontWeight: 600, fontSize: 13 }} className="text-graphite">
+          Pagos Proveedores
+        </span>
       </div>
 
-      <form action={onSignOut} className="flex items-center gap-4">
+      <form action={onSignOut} className="flex items-center gap-3">
         <div className="text-right leading-tight">
-          <p className="text-sm font-semibold text-ink">{email}</p>
-          <p className="text-xs text-stone">{ROLE_LABELS[role] ?? role}</p>
+          <p style={{ fontSize: 12, fontWeight: 700 }} className="text-ink">
+            {name || email}
+          </p>
+          <p style={{ fontSize: 10 }} className="text-stone">
+            {ROLE_LABELS[role] ?? role}
+          </p>
         </div>
         <button
           type="submit"
           aria-label="Cerrar sesión"
-          className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-sm font-semibold text-graphite transition-colors duration-150 hover:bg-parchment focus-visible:outline-none focus-visible:shadow-glow-red"
+          className="flex items-center gap-1.5 border border-line text-graphite transition-colors duration-150 hover:bg-parchment focus-visible:outline-none focus-visible:shadow-glow-red"
+          style={{ borderRadius: 8, padding: "6px 10px", fontSize: 11, fontWeight: 700 }}
         >
-          <LogOut size={16} />
-          Cerrar sesión
+          <LogOut size={13} />
+          Salir
         </button>
       </form>
     </header>

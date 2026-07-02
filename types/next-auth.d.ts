@@ -11,6 +11,7 @@ declare module "next-auth" {
       id: string;
       email: string;
       role: AppRole;
+      name?: string | null;
     };
   }
 
@@ -18,6 +19,7 @@ declare module "next-auth" {
     id: string;
     email: string;
     role: AppRole;
+    name?: string | null;
   }
 }
 

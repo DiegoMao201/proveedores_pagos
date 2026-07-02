@@ -8,7 +8,7 @@ import { PendingDetail } from "@/components/cartera/pending-detail";
 import { getPending, getPendingByKey, type ErpPending } from "@/lib/cartera-data";
 import { getCapturableDiscountTotal, getDashboardKpis } from "@/lib/dashboard-data";
 import { CarteraTabs } from "@/components/cartera/cartera-tabs";
-import { formatCurrency, formatDateEs } from "@/lib/format";
+import { formatCurrency, formatCompact, formatDateEs } from "@/lib/format";
 
 const AGING_OPTIONS = [
   { value: "al_dia", label: "Al día" },
@@ -74,26 +74,34 @@ export default async function CarteraPendientePage({ searchParams }: PageProps) 
   const closeHref = `/cartera/pendiente?${closeParams.toString()}`;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Cartera</h1>
-        <p className="text-sm text-stone">Cuentas por pagar según el ERP.</p>
+        <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
+          Cartera
+        </h1>
+        <p className="text-stone" style={{ fontSize: 12 }}>Cuentas por pagar según el ERP.</p>
       </div>
 
       <CarteraTabs active="pendiente" />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-wide text-stone">Total pendiente (portafolio)</p>
-          <p className="num mt-2 text-2xl font-bold text-ink">{formatCurrency(portfolioTotal)}</p>
+          <p className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Total pendiente (portafolio)
+          </p>
+          <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{formatCompact(portfolioTotal)}</p>
         </Card>
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-wide text-stone">Facturas (portafolio)</p>
-          <p className="num mt-2 text-2xl font-bold text-ink">{portfolioCount.toLocaleString("es-CO")}</p>
+          <p className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Facturas (portafolio)
+          </p>
+          <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{portfolioCount.toLocaleString("es-CO")}</p>
         </Card>
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-wide text-stone">Con descuento vigente</p>
-          <p className="num mt-2 text-2xl font-bold text-success">{conDescuentoCount}</p>
+          <p className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Con descuento vigente
+          </p>
+          <p className="num text-success" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{conDescuentoCount}</p>
         </Card>
       </div>
 

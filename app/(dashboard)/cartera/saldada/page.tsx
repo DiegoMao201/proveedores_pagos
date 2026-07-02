@@ -5,7 +5,7 @@ import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { TablePagination } from "@/components/data-table/table-pagination";
 import { PaidDetail } from "@/components/cartera/paid-detail";
 import { getPaid, getPaidByKey, type ErpPaid } from "@/lib/cartera-data";
-import { formatCurrency, formatDateEs } from "@/lib/format";
+import { formatCurrency, formatCompact, formatDateEs } from "@/lib/format";
 import { CarteraTabs } from "@/components/cartera/cartera-tabs";
 
 interface PageProps {
@@ -45,22 +45,28 @@ export default async function CarteraSaldadaPage({ searchParams }: PageProps) {
   const closeHref = `/cartera/saldada?${closeParams.toString()}`;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div>
-        <h1 className="text-2xl font-bold text-ink">Cartera</h1>
-        <p className="text-sm text-stone">Facturas ya pagadas según el ERP.</p>
+        <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
+          Cartera
+        </h1>
+        <p className="text-stone" style={{ fontSize: 12 }}>Facturas ya pagadas según el ERP.</p>
       </div>
 
       <CarteraTabs active="saldada" />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-wide text-stone">Total en esta página</p>
-          <p className="num mt-2 text-2xl font-bold text-ink">{formatCurrency(pageTotal)}</p>
+          <p className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Total en esta página
+          </p>
+          <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{formatCompact(pageTotal)}</p>
         </Card>
         <Card>
-          <p className="text-sm font-semibold uppercase tracking-wide text-stone">Facturas filtradas</p>
-          <p className="num mt-2 text-2xl font-bold text-ink">{total.toLocaleString("es-CO")}</p>
+          <p className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Facturas filtradas
+          </p>
+          <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{total.toLocaleString("es-CO")}</p>
         </Card>
       </div>
 

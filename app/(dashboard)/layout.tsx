@@ -17,12 +17,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     await signOut({ redirectTo: "/login" });
   }
 
-  const userInitial = session.user.email.trim().charAt(0).toUpperCase();
+  const userInitial = (session.user.name || session.user.email).trim().charAt(0).toUpperCase();
 
   return (
     <div className="flex h-screen flex-col">
       <div className="hidden md:block">
-        <Topbar email={session.user.email} role={session.user.role} onSignOut={handleSignOut} />
+        <Topbar email={session.user.email} name={session.user.name} role={session.user.role} onSignOut={handleSignOut} />
       </div>
       <MobileHeader userInitial={userInitial} />
       <div className="flex flex-1 overflow-hidden">

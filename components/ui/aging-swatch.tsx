@@ -17,7 +17,7 @@ export function AgingSwatch({ counts }: AgingSwatchProps) {
 
   return (
     <div className="w-full">
-      <div className="flex h-3 w-full overflow-hidden rounded-sm">
+      <div className="flex w-full overflow-hidden rounded-sm" style={{ height: 6 }}>
         {BUCKETS.map((bucket) => {
           const value = counts[bucket.key] ?? 0;
           const widthPct = Math.max((value / total) * 100, value > 0 ? 4 : 0);
@@ -31,12 +31,12 @@ export function AgingSwatch({ counts }: AgingSwatchProps) {
           );
         })}
       </div>
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone">
+      <div className="mt-1.5 flex flex-wrap text-stone" style={{ gap: "3px 8px", fontSize: 8 }}>
         {BUCKETS.map((bucket) => (
-          <span key={bucket.key} className="flex items-center gap-1.5">
+          <span key={bucket.key} className="flex items-center gap-1">
             <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ backgroundColor: bucket.color }}
+              className="inline-block rounded-full"
+              style={{ backgroundColor: bucket.color, width: 5, height: 5 }}
             />
             {bucket.label}
           </span>

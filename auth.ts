@@ -90,6 +90,7 @@ interface LoginLookupRow {
   password_hash: string;
   role: AppRole;
   active: boolean;
+  full_name: string | null;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -108,7 +109,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!email || !password) return null;
 
         const res = await postgrestAnonFetch(
-          `/v_login_lookup?email=eq.${encodeURIComponent(email)}&select=id,email,password_hash,role,active`,
+          `/v_login_lookup?email=eq.${encodeURIComponent(email)}&select=id,email,password_hash,role,active,full_name`,
           {},
           "auth"
         );
@@ -121,7 +122,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) return null;
 
-        return { id: user.id, email: user.email, role: user.role };
+        return { id: user.id, email: user.email, role: user.role, name: user.full_name ?? undefined };
       },
     }),
   ],
@@ -139,6 +140,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.accessTokenExpires = Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000;
         token.appRole = appRole;
         token.userId = user.id;
+        token.name = user.name;
         token.error = undefined;
         return token;
       }
@@ -171,6 +173,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.refreshToken = token.refreshToken ?? "";
       session.user.id = token.userId ?? "";
       session.user.role = token.appRole ?? "gerencia";
+      session.user.name = token.name ?? null;
       session.error = token.error;
       return session;
     },
