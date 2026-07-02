@@ -21,7 +21,7 @@ export interface RefreshTokenClaims {
   jti: string;
 }
 
-const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 24 * 60 * 60;
 
 function getSecretKey(): Uint8Array {

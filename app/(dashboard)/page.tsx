@@ -1,3 +1,4 @@
+import { AlertCircle } from "lucide-react";
 import { auth } from "@/auth";
 import { Card } from "@/components/ui/card";
 import { KPICard } from "@/components/ui/kpi-card";
@@ -8,7 +9,10 @@ import {
   getPendingAging,
   getPaymentCalendar,
   getCapturableDiscountTotal,
+  type DashboardKpis,
 } from "@/lib/dashboard-data";
+import type { AgingBucketKey } from "@/components/ui/aging-swatch";
+import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
 import { formatCurrency } from "@/lib/format";
 
 export const revalidate = 300; // 5 minutos (E.: auto-refresh de KPIs)
@@ -34,12 +38,26 @@ export default async function DashboardPage() {
   const isContabilidad = role === "contabilidad" || role === "admin";
   const isAdmin = role === "admin";
 
-  const [kpis, aging, heatmapDays, discounts] = await Promise.all([
-    getDashboardKpis(),
-    getPendingAging(),
-    getPaymentCalendar(),
-    getCapturableDiscountTotal(),
-  ]);
+  let kpis: DashboardKpis | null = null;
+  let aging: Record<AgingBucketKey, number> | null = null;
+  let heatmapDays: HeatmapDay[] = [];
+  let discounts: { total: number; count: number; nearestDeadline: string | null } = {
+    total: 0,
+    count: 0,
+    nearestDeadline: null,
+  };
+  let dataError: string | null = null;
+
+  try {
+    [kpis, aging, heatmapDays, discounts] = await Promise.all([
+      getDashboardKpis(),
+      getPendingAging(),
+      getPaymentCalendar(),
+      getCapturableDiscountTotal(),
+    ]);
+  } catch (error) {
+    dataError = error instanceof Error ? error.message : "Error desconocido";
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -48,40 +66,51 @@ export default async function DashboardPage() {
         <p className="text-lg text-graphite capitalize">Hoy es {today}.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          label="Facturas ingestadas (30d)"
-          value={kpis.facturas_ingestadas_30d.toLocaleString("es-CO")}
-        />
-        <KPICard
-          label="Cartera pendiente"
-          value={formatCurrency(kpis.cartera_pendiente_total)}
-          trend={{ direction: "up", label: `${kpis.cartera_pendiente_count} facturas` }}
-          footer={<AgingSwatch counts={aging} />}
-        />
-        <KPICard
-          label="Cartera saldada (30d)"
-          value={formatCurrency(kpis.cartera_saldada_30d_total)}
-          trend={{ direction: "up", label: `${kpis.cartera_saldada_30d_count} facturas` }}
-        />
-        <KPICard
-          label="Ahorro capturable"
-          value={formatCurrency(discounts.total)}
-          trend={{
-            direction: "up",
-            label: discounts.nearestDeadline
-              ? `${discounts.count} facturas, vence antes ${discounts.nearestDeadline}`
-              : "sin descuentos vigentes",
-          }}
-          variant="success"
-        />
-      </div>
+      {dataError ? (
+        <Card className="border-red-deep bg-cream">
+          <p className="flex items-center gap-2 text-sm font-semibold text-red-deep">
+            <AlertCircle size={16} />
+            No pudimos cargar los indicadores en vivo. Verifica tu conexión y reintenta.
+          </p>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <KPICard
+              label="Facturas ingestadas (30d)"
+              value={kpis!.facturas_ingestadas_30d.toLocaleString("es-CO")}
+            />
+            <KPICard
+              label="Cartera pendiente"
+              value={formatCurrency(kpis!.cartera_pendiente_total)}
+              trend={{ direction: "up", label: `${kpis!.cartera_pendiente_count} facturas` }}
+              footer={<AgingSwatch counts={aging!} />}
+            />
+            <KPICard
+              label="Cartera saldada (30d)"
+              value={formatCurrency(kpis!.cartera_saldada_30d_total)}
+              trend={{ direction: "up", label: `${kpis!.cartera_saldada_30d_count} facturas` }}
+            />
+            <KPICard
+              label="Ahorro capturable"
+              value={formatCurrency(discounts.total)}
+              trend={{
+                direction: "up",
+                label: discounts.nearestDeadline
+                  ? `${discounts.count} facturas, vence antes ${discounts.nearestDeadline}`
+                  : "sin descuentos vigentes",
+              }}
+              variant="success"
+            />
+          </div>
 
-      <Card>
-        <h2 className="mb-1 text-xl font-bold text-ink">Calendario de pagos</h2>
-        <p className="mb-4 text-sm text-stone">Próximos 30 días — cartera pendiente por fecha de vencimiento</p>
-        <PaymentCalendarHeatmap days={heatmapDays} />
-      </Card>
+          <Card>
+            <h2 className="mb-1 text-xl font-bold text-ink">Calendario de pagos</h2>
+            <p className="mb-4 text-sm text-stone">Próximos 30 días — cartera pendiente por fecha de vencimiento</p>
+            <PaymentCalendarHeatmap days={heatmapDays} />
+          </Card>
+        </>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {canSeeOperativeActions && (

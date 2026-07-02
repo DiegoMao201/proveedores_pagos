@@ -6,7 +6,7 @@ import { Topbar } from "@/components/layout/topbar";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
-  if (!session) {
+  if (!session || session.error === "RefreshAccessTokenError") {
     redirect("/login");
   }
 
