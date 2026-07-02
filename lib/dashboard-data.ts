@@ -86,6 +86,25 @@ export async function getPaymentCalendar(): Promise<HeatmapDay[]> {
   return days;
 }
 
+export async function getPaymentRunway(): Promise<{ d7: number; d15: number; d30: number }> {
+  const rows = await fetchTreasury<{ fecha: string; total: number }[]>("/v_payment_calendar");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const sumUntil = (days: number) => {
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + days);
+    return rows
+      .filter((r) => {
+        const d = new Date(r.fecha);
+        return d >= today && d <= limit;
+      })
+      .reduce((sum, r) => sum + Number(r.total), 0);
+  };
+
+  return { d7: sumUntil(7), d15: sumUntil(15), d30: sumUntil(30) };
+}
+
 export async function getCapturableDiscountTotal(): Promise<{ total: number; count: number; nearestDeadline: string | null }> {
   const rows = await fetchTreasury<PendingInvoiceForDiscount[]>(
     "/erp_pending?select=nombre_proveedor_erp,fecha_emision_erp,valor_total_erp"
