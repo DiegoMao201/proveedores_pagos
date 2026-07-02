@@ -1,26 +1,90 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Primarios de marca */
+  --color-red-deep: #B21917;
+  --color-red: #E73537;
+  --color-orange: #F0833A;
+  --color-yellow: #F9B016;
+  --color-cream: #FEF4C0;
+
+  /* Neutros calidos */
+  --color-ink: #1A1614;
+  --color-graphite: #4A4340;
+  --color-stone: #8A827E;
+  --color-parchment: #FAF7F2;
+  --color-paper: #FFFFFF;
+  --color-line: #EDE6DA;
+
+  /* Semanticos */
+  --color-success: #4A7A3F;
+  --color-info: #3B6B8F;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-red-deep: var(--color-red-deep);
+  --color-red: var(--color-red);
+  --color-orange: var(--color-orange);
+  --color-yellow: var(--color-yellow);
+  --color-cream: var(--color-cream);
+  --color-ink: var(--color-ink);
+  --color-graphite: var(--color-graphite);
+  --color-stone: var(--color-stone);
+  --color-parchment: var(--color-parchment);
+  --color-paper: var(--color-paper);
+  --color-line: var(--color-line);
+  --color-success: var(--color-success);
+  --color-info: var(--color-info);
+
+  --font-display: var(--font-nunito), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: var(--font-nunito), -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-numeric: var(--font-inter), ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 2px 0 rgba(74, 67, 64, 0.06);
+  --shadow-md: 0 4px 12px -2px rgba(74, 67, 64, 0.10);
+  --shadow-lg: 0 12px 32px -8px rgba(74, 67, 64, 0.15);
+  --shadow-glow-red: 0 0 0 3px rgba(231, 53, 55, 0.15);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Numeros tabulares: montos, fechas, porcentajes siempre alineados */
+.num,
+td.num,
+.amount,
+.date,
+.percent {
+  font-family: var(--font-numeric);
+  font-feature-settings: "tnum" 1, "cv11" 1;
+  font-variant-numeric: tabular-nums;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-parchment);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+/* No dark mode en v1 (brief seccion 16): sin @media prefers-color-scheme. */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

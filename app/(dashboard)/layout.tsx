@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
+import { Sidebar } from "@/components/layout/sidebar";
+import { Topbar } from "@/components/layout/topbar";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const session = await auth();
@@ -8,17 +10,20 @@ export default async function DashboardLayout({ children }: { children: ReactNod
     redirect("/login");
   }
 
+  async function handleSignOut() {
+    "use server";
+    await signOut({ redirectTo: "/login" });
+  }
+
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="border-b border-slate-200 bg-white px-6 py-3">
-        <div className="flex items-center justify-between">
-          <span className="font-bold text-slate-900">Pagos Proveedores</span>
-          <span className="text-sm text-slate-500">
-            {session.user.email} · <span className="font-semibold">{session.user.role}</span>
-          </span>
-        </div>
-      </header>
-      <main className="flex-1 p-6">{children}</main>
+    <div className="flex h-screen flex-col">
+      <Topbar email={session.user.email} role={session.user.role} onSignOut={handleSignOut} />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-[1440px] p-8">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

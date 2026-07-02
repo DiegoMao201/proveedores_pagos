@@ -1,15 +1,22 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function LoginPage() {
   const router = useRouter();
+  const emailRef = useRef<HTMLInputElement>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    emailRef.current?.focus();
+  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -34,42 +41,59 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
-      >
-        <h1 className="mb-1 text-xl font-bold text-slate-900">Pagos Proveedores</h1>
-        <p className="mb-6 text-sm text-slate-500">Ingresa con tu correo y contraseña.</p>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-parchment px-4">
+      <div className="w-full max-w-[400px] rounded-lg border border-line bg-paper p-8 shadow-md">
+        <div className="mb-6 flex flex-col items-center text-center">
+          <span className="text-2xl font-extrabold text-red">Ferreinox</span>
+          <h1 className="mt-3 text-xl font-semibold text-graphite">Pagos Proveedores</h1>
+        </div>
 
-        <label className="mb-1 block text-sm font-medium text-slate-700">Correo</label>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
+        <hr className="mb-6 border-line" />
 
-        <label className="mb-1 block text-sm font-medium text-slate-700">Contraseña</label>
-        <input
-          type="password"
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          className="mb-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-        />
+        {error && (
+          <p className="mb-4 flex items-center gap-2 text-sm font-semibold text-red-deep">
+            <AlertCircle size={16} />
+            {error}
+          </p>
+        )}
 
-        {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <label htmlFor="email" className="mb-1 block text-sm font-semibold text-graphite">
+            Correo
+          </label>
+          <input
+            ref={emailRef}
+            id="email"
+            type="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className="mb-4 w-full rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-stone/60 hover:border-stone focus:border-red focus:shadow-glow-red"
+          />
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {loading ? "Ingresando..." : "Ingresar"}
-        </button>
-      </form>
+          <label htmlFor="password" className="mb-1 block text-sm font-semibold text-graphite">
+            Contraseña
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className="mb-6 w-full rounded-md border border-line px-3 py-2 text-sm text-ink outline-none transition-colors placeholder:text-stone/60 hover:border-stone focus:border-red focus:shadow-glow-red"
+          />
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Ingresando…" : "Ingresar"}
+          </Button>
+        </form>
+      </div>
+
+      <p className="mt-6 text-center text-xs text-stone">
+        Ferreinox S.A.S. BIC
+        <br />
+        Uso interno · v1.0
+      </p>
     </main>
   );
 }
