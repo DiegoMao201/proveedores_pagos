@@ -1,16 +1,26 @@
 import { notFound } from "next/navigation";
 import { AlertCircle } from "lucide-react";
+import { auth } from "@/auth";
 import { Card } from "@/components/ui/card";
 import { ProviderSelector } from "@/components/providers/provider-selector";
 import { ProviderHeader } from "@/components/providers/provider-header";
 import { ProviderKPIGrid } from "@/components/providers/provider-kpi-grid";
+import { SectionTabs } from "@/components/rebate/section-tabs";
+import { EditableBasicsForm } from "@/components/providers/editable-basics-form";
+import { EditableConditionsForm } from "@/components/providers/editable-conditions-form";
+import { EditableContactsForm } from "@/components/providers/editable-contacts-form";
+import { BankAccountsTab } from "@/components/providers/bank-accounts-tab";
+import { ProviderHistoryTab } from "@/components/providers/provider-history-tab";
 import {
   getProviderById,
+  getProviderFull,
   listProviders,
   getDiscountRules,
   discountSummaryText,
   getProviderInvoiceSummary,
+  getProviderHistory,
 } from "@/lib/provider-detail-data";
+import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
 import { getCapturableDiscountTotal } from "@/lib/dashboard-data";
 
 interface PageProps {
@@ -29,6 +39,8 @@ function simplifiedHealthScore(fields: (string | number | null)[]): number {
 export default async function ProviderDetailPage({ params }: PageProps) {
   const { id } = await params;
   const providerId = Number(id);
+  const session = await auth();
+  const canEdit = session?.user.role === "admin" || session?.user.role === "tesoreria" || session?.user.role === "contabilidad";
 
   let dataError: string | null = null;
   const provider = await getProviderById(providerId).catch((e) => {
@@ -51,12 +63,18 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     );
   }
 
-  const [allProviders, discountRules, invoiceSummary, discounts] = await Promise.all([
+  const [allProviders, discountRules, invoiceSummary, discounts, providerFull, bankAccounts, bankCatalog, history] = await Promise.all([
     listProviders(),
     getDiscountRules(provider.id),
     getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
     getCapturableDiscountTotal(),
+    getProviderFull(provider.id),
+    getBankAccounts(provider.id),
+    getBankCatalog(),
+    getProviderHistory(provider.id, 20, 0),
   ]);
+
+  if (!providerFull) notFound();
 
   const index = allProviders.findIndex((p) => p.id === provider.id) + 1;
   const healthScore = simplifiedHealthScore([
@@ -68,8 +86,51 @@ export default async function ProviderDetailPage({ params }: PageProps) {
 
   const providerDiscounts = discounts.count > 0 ? Math.round(discounts.total / discounts.count) : 0;
 
+  const tabs = [
+    { key: "basicos", label: "Datos básicos", content: <EditableBasicsForm provider={providerFull} canEdit={canEdit} /> },
+    { key: "condiciones", label: "Condiciones comerciales", content: <EditableConditionsForm provider={providerFull} canEdit={canEdit} /> },
+    { key: "contactos", label: "Contactos y correos", content: <EditableContactsForm provider={providerFull} canEdit={canEdit} /> },
+    {
+      key: "cuentas",
+      label: "Cuentas bancarias",
+      content: (
+        <BankAccountsTab
+          providerId={provider.id}
+          accounts={bankAccounts}
+          bankCatalog={bankCatalog}
+          nitDefault={providerFull.nif}
+          nombreDefault={providerFull.nombre}
+          canEdit={canEdit}
+        />
+      ),
+    },
+    {
+      key: "descuentos",
+      label: "Descuentos por pronto pago",
+      content: (
+        <Card>
+          <p className="text-stone" style={{ fontSize: 11 }}>
+            {discountSummaryText(discountRules) ?? "Sin reglas de descuento configuradas."} Edición de reglas llega en B2.2.
+          </p>
+        </Card>
+      ),
+    },
+    {
+      key: "retenciones",
+      label: "Retenciones",
+      content: (
+        <Card>
+          <p className="text-stone" style={{ fontSize: 11 }}>
+            Sin retenciones configuradas. Edición llega en B2.3.
+          </p>
+        </Card>
+      ),
+    },
+    { key: "historial", label: "Historial de cambios", content: <ProviderHistoryTab history={history} /> },
+  ];
+
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-3">
       <ProviderSelector providerName={provider.nombre} index={index} total={allProviders.length} />
 
       <ProviderHeader
@@ -89,12 +150,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
         rebateLabel="—"
       />
 
-      <Card>
-        <p className="text-sm text-stone">
-          La tabla de facturas con tabs (por pagar / por conciliar / ya pagadas), el panel de acción
-          sugerida y el footer de armado de lote llegan en el Checkpoint DR.3.
-        </p>
-      </Card>
+      <SectionTabs tabs={tabs} />
     </div>
   );
 }

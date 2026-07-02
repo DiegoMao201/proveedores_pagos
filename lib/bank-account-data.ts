@@ -1,0 +1,75 @@
+import "server-only";
+import { postgrestFetch } from "@/lib/postgrest";
+
+export interface BankCatalogRow {
+  codigo: number;
+  nombre: string;
+}
+
+export async function getBankCatalog(): Promise<BankCatalogRow[]> {
+  const res = await postgrestFetch("/bank_catalog?select=*&order=nombre.asc", {}, "providers");
+  if (!res.ok) throw new Error(`PostgREST /bank_catalog -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export interface BankAccountRow {
+  id: number;
+  provider_id: number;
+  tipo_documento_beneficiario: number;
+  nit_beneficiario: string;
+  nombre_beneficiario: string;
+  tipo_transaccion: number;
+  codigo_banco: number;
+  numero_cuenta: string;
+  tipo_cuenta: "S" | "D";
+  email_pago: string | null;
+  referencia: string | null;
+  celular_beneficiario: string | null;
+  es_principal: boolean;
+  inscrita_bancolombia: boolean;
+  fecha_inscripcion: string | null;
+  activa: boolean;
+}
+
+export async function getBankAccounts(providerId: number): Promise<BankAccountRow[]> {
+  const res = await postgrestFetch(
+    `/bank_account?provider_id=eq.${providerId}&activa=eq.true&select=*&order=es_principal.desc,id.asc`,
+    {},
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST /bank_account -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export interface ProviderListRow {
+  id: number;
+  codigo_proveedor: string | null;
+  nif: string | null;
+  nombre: string;
+  nombre_normalizado: string;
+  activo: boolean;
+  categoria_proveedor: string | null;
+  email_pago: string | null;
+  contacto_pagos: string | null;
+  plazo_pago_dias: number | null;
+  tiene_cuenta_activa: boolean;
+  tiene_cuenta_inscrita: boolean;
+}
+
+export async function getProviderList(q?: string, categoria?: string, estadoBancario?: string): Promise<ProviderListRow[]> {
+  const params = new URLSearchParams();
+  params.set("select", "*");
+  params.set("order", "nombre.asc");
+  if (q) {
+    const cleaned = q.replace(/[,()]/g, "");
+    params.set("or", `(nombre.ilike.*${cleaned}*,nif.ilike.*${cleaned}*,codigo_proveedor.ilike.*${cleaned}*)`);
+  }
+  if (categoria) params.set("categoria_proveedor", `eq.${categoria}`);
+  if (estadoBancario === "pagable") params.set("tiene_cuenta_activa", "eq.true");
+  if (estadoBancario === "sin_cuenta") params.set("tiene_cuenta_activa", "eq.false");
+  if (estadoBancario === "inactivo") params.set("activo", "eq.false");
+
+  const res = await postgrestFetch(`/v_provider_list?${params.toString()}`, {}, "providers");
+  if (!res.ok) throw new Error(`PostgREST /v_provider_list -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}

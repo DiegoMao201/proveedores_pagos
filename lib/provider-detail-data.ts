@@ -11,6 +11,66 @@ export interface ProviderRow {
   activo: boolean;
 }
 
+export type CategoriaProveedor = "estrategico" | "operativo" | "locativo" | "esporadico" | "institucional";
+
+export interface ProviderFull {
+  id: number;
+  codigo_proveedor: string | null;
+  nif: string | null;
+  nombre: string;
+  nombre_normalizado: string;
+  activo: boolean;
+  categoria_proveedor: CategoriaProveedor | null;
+  email_pago: string | null;
+  email_cc: string | null;
+  email_alertas: string | null;
+  contacto_pagos: string | null;
+  contacto_tesoreria: string | null;
+  contacto_cargo: string | null;
+  telefono: string | null;
+  condiciones_comerciales: string | null;
+  observaciones: string | null;
+  plazo_pago_dias: number | null;
+  forma_pago: string | null;
+  limite_credito: number | null;
+  dia_corte_pagos: number | null;
+  anomaly_detection: boolean;
+}
+
+const PROVIDER_FULL_SELECT =
+  "id,codigo_proveedor,nif,nombre,nombre_normalizado,activo,categoria_proveedor,email_pago,email_cc,email_alertas," +
+  "contacto_pagos,contacto_tesoreria,contacto_cargo,telefono,condiciones_comerciales,observaciones,plazo_pago_dias," +
+  "forma_pago,limite_credito,dia_corte_pagos,anomaly_detection";
+
+export async function getProviderFull(id: number): Promise<ProviderFull | null> {
+  const res = await postgrestFetch(`/provider?id=eq.${id}&select=${PROVIDER_FULL_SELECT}`, {}, "providers");
+  if (!res.ok) throw new Error(`PostgREST /provider -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as ProviderFull[];
+  return rows[0] ?? null;
+}
+
+export interface ProviderHistoryRow {
+  history_id: number;
+  provider_id: number;
+  table_name: string;
+  changed_at: string;
+  changed_by: string | null;
+  operation: "INSERT" | "UPDATE" | "DELETE";
+  old_row: Record<string, unknown> | null;
+  new_row: Record<string, unknown> | null;
+  changed_fields: string[] | null;
+}
+
+export async function getProviderHistory(providerId: number, limit = 20, offset = 0): Promise<ProviderHistoryRow[]> {
+  const res = await postgrestFetch(
+    `/provider_history?provider_id=eq.${providerId}&select=*&order=changed_at.desc&limit=${limit}&offset=${offset}`,
+    {},
+    "audit"
+  );
+  if (!res.ok) throw new Error(`PostgREST /provider_history -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export interface DiscountRuleRow {
   dias_max: number;
   tasa_descuento: number;
