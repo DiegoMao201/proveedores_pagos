@@ -36,12 +36,14 @@ export const DISCOUNT_RULES_NORMALIZED: Record<string, { days: number; rate: num
   );
 
 export interface PendingInvoiceForDiscount {
+  invoice_key?: string;
   nombre_proveedor_erp: string;
   fecha_emision_erp: string | null;
   valor_total_erp: number;
 }
 
 export interface CapturableDiscount {
+  invoice_key?: string;
   nombre_proveedor_erp: string;
   rate: number;
   deadline: string;
@@ -77,6 +79,7 @@ export function calculateCapturableDiscounts(
     const best = validRules[0];
 
     results.push({
+      invoice_key: row.invoice_key,
       nombre_proveedor_erp: row.nombre_proveedor_erp,
       rate: best.rate,
       deadline: best.deadline.toISOString().slice(0, 10),
