@@ -179,8 +179,8 @@ export default async function RebatePintucoPage() {
                 <th className="px-3 py-2 text-left">Mes</th>
                 <th className="px-3 py-2 text-left">Trim.</th>
                 <th className="px-3 py-2 text-right">Compra neta</th>
-                <th className="px-3 py-2 text-right">12% excluido</th>
-                <th className="px-3 py-2 text-right">88% aplicable</th>
+                <th className="px-3 py-2 text-right">10% excluido</th>
+                <th className="px-3 py-2 text-right">90% aplicable</th>
                 <th className="px-3 py-2 text-right">Meta E1</th>
                 <th className="px-3 py-2 text-right">Meta E2</th>
                 <th className="px-3 py-2 text-right">Faltante E1</th>
@@ -196,7 +196,7 @@ export default async function RebatePintucoPage() {
                   <td className="px-3 py-2 font-semibold text-ink">{m.mes}</td>
                   <td className="px-3 py-2 text-stone">{m.trimestre}</td>
                   <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.compra_neta)}</td>
-                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.excluido_12)}</td>
+                  <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.excluido_10)}</td>
                   <td className="num px-3 py-2 text-right text-ink">{formatCompact(m.venta_lograda)}</td>
                   <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.escala_1)}</td>
                   <td className="num px-3 py-2 text-right text-stone">{formatCompact(m.escala_2)}</td>
@@ -221,16 +221,16 @@ export default async function RebatePintucoPage() {
           Compra neta por mes
         </h2>
         <p className="text-stone" style={{ fontSize: 10, marginBottom: 10 }}>
-          88% aplicable al rebate (rojo) vs. 12% excluido (gris).
+          90% aplicable al rebate (rojo) vs. 10% excluido (gris).
         </p>
         <StackedBarChart
           series={[
-            { key: "aplicable", label: "88% aplicable", color: "var(--color-red)" },
-            { key: "excluido", label: "12% excluido", color: "var(--color-line)" },
+            { key: "aplicable", label: "90% aplicable", color: "var(--color-red)" },
+            { key: "excluido", label: "10% excluido", color: "var(--color-line)" },
           ]}
           data={monthly.map((m) => ({
             category: m.mes.slice(0, 3),
-            values: { aplicable: m.venta_lograda, excluido: m.excluido_12 },
+            values: { aplicable: m.venta_lograda, excluido: m.excluido_10 },
           }))}
         />
       </Card>
@@ -405,7 +405,7 @@ export default async function RebatePintucoPage() {
           Reglas comerciales activas
         </p>
         <ul className="text-stone" style={{ fontSize: 10.5, lineHeight: 1.7 }}>
-          <li>1. La base del cálculo es la compra neta menos el 12% excluido; el rebate corre sobre el 88%.</li>
+          <li>1. La base del cálculo es la compra neta menos el 10% excluido; el rebate corre sobre el 90%.</li>
           <li>2. Cada mes compara contra Escala 1 (1,0%) y Escala 2 (1,5%); el trimestre contra 1,0% y 2,5%.</li>
           <li>
             3. Estacionalidad: si al cierre del corte del mes (

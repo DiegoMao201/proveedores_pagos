@@ -64,7 +64,7 @@ export function PintucoSimulator({
   ventaAcumuladaTrimestre: number;
 }) {
   const [compraNeta, setCompraNeta] = useState(escalaMensual2);
-  const compraAplicable = compraNeta * 0.88;
+  const compraAplicable = compraNeta * 0.90;
 
   const tasaMensual = compraAplicable >= escalaMensual2 ? 0.015 : compraAplicable >= escalaMensual1 ? 0.01 : 0;
   const escalaMensualLabel = compraAplicable >= escalaMensual2 ? "Escala 2" : compraAplicable >= escalaMensual1 ? "Escala 1" : "Sin escala";
@@ -79,9 +79,9 @@ export function PintucoSimulator({
   return (
     <SimulatorShell title="Simulador — ¿qué pasa si compro X este mes?">
       <div className="flex flex-col gap-3">
-        <NumberField label="Compra neta proyectada del mes (antes del 12% excluido)" value={compraNeta} onChange={setCompraNeta} />
+        <NumberField label="Compra neta proyectada del mes (antes del 10% excluido)" value={compraNeta} onChange={setCompraNeta} />
         <p className="text-stone" style={{ fontSize: 10 }}>
-          Compra aplicable (88%): <span className="num font-semibold text-graphite">{formatFull(compraAplicable)}</span>
+          Compra aplicable (90%): <span className="num font-semibold text-graphite">{formatFull(compraAplicable)}</span>
         </p>
       </div>
       <div className="flex flex-col">

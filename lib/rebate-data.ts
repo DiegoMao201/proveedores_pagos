@@ -29,7 +29,7 @@ export interface PintucoMonthlyRow {
   rebate_mensual_ganado: number;
   gap_siguiente_escalon: number;
   compra_neta: number;
-  excluido_12: number;
+  excluido_10: number;
   faltante_escala_1: number;
   faltante_escala_2: number;
   estado_mes: "FUTURO" | "CUMPLIDO" | "ABIERTO" | "NO_CUMPLIDO";
