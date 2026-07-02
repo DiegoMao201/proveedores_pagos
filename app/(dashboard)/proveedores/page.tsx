@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertCircle, Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { TableToolbar } from "@/components/data-table/table-toolbar";
@@ -64,7 +65,11 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
                     <tr key={p.id} className="border-b border-line last:border-0 hover:bg-cream/30">
                       <td className="num px-6 py-3">{p.codigo_proveedor ?? "—"}</td>
                       <td className="num px-4 py-3">{p.nif ?? "—"}</td>
-                      <td className="px-4 py-3 font-semibold text-ink">{p.nombre}</td>
+                      <td className="px-4 py-3">
+                        <Link href={`/proveedores/${p.id}`} className="font-semibold text-ink hover:text-red">
+                          {p.nombre}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">{p.activo ? "Sí" : "No"}</td>
                       <td className="px-4 py-3">{p.email_pago ?? "—"}</td>
                       <td className="px-6 py-3">{p.contacto_pagos ?? "—"}</td>

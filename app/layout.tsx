@@ -6,13 +6,14 @@ import { Providers } from "./providers";
 const nunito = Nunito({
   variable: "--font-nunito",
   subsets: ["latin", "latin-ext"],
-  weight: ["400", "600", "700", "800"],
+  weight: ["400", "600", "700", "800", "900"],
   display: "swap",
 });
 
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 

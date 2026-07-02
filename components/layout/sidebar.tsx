@@ -1,71 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Home, FileText, Wallet, GitMerge, Building2, Search, TrendingUp, CalendarClock } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Home, Building2, TrendingUp, Layers, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV_SECTIONS = [
   {
-    label: "Principal",
+    label: "Hoy",
     items: [{ href: "/", label: "Inicio", icon: Home }],
   },
   {
-    label: "Tesorería",
-    items: [
-      { href: "/facturas", label: "Facturas", icon: FileText },
-      { href: "/cartera/pendiente", label: "Cartera", icon: Wallet },
-      { href: "/conciliacion", label: "Conciliación", icon: GitMerge },
-      { href: "/planificador", label: "Planificador", icon: CalendarClock },
-    ],
-  },
-  {
-    label: "Gestión",
+    label: "Trabajo",
     items: [
       { href: "/proveedores", label: "Proveedores", icon: Building2 },
       { href: "/rebate/pintuco", label: "Rebate", icon: TrendingUp },
+      { href: "/lotes", label: "Lotes", icon: Layers },
+    ],
+  },
+  {
+    label: "Análisis",
+    items: [
+      { href: "/analisis/cartera", label: "Cartera", icon: BarChart3 },
+      { href: "/analisis/conciliacion", label: "Conciliación", icon: BarChart3 },
     ],
   },
 ];
 
-// Franja de marca: reusa la paleta del signature element (muestra de pintura) como
-// acento decorativo -- misma metafora de color, sin iconografia nueva (brief 4.1).
-const BRAND_STRIPE = ["#FEF4C0", "#F9B016", "#F0833A", "#E73537", "#B21917"];
-
 export function Sidebar() {
   const pathname = usePathname();
-  const router = useRouter();
 
   return (
-    <nav className="flex h-full w-64 shrink-0 flex-col border-r border-line bg-paper">
-      <div className="px-5 pb-4 pt-5">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-xl font-extrabold tracking-tight text-red">Ferreinox</span>
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-widest text-stone">Pagos proveedores</p>
-        <div className="mt-3 flex h-1 overflow-hidden rounded-full">
-          {BRAND_STRIPE.map((color) => (
-            <span key={color} className="h-full flex-1" style={{ backgroundColor: color }} />
-          ))}
-        </div>
+    <nav
+      className="hidden shrink-0 flex-col rounded-xl border border-line bg-paper md:flex"
+      style={{ width: 148, margin: 14, padding: "14px 10px" }}
+    >
+      <div className="border-b border-line pb-3">
+        <span
+          className="block text-red"
+          style={{ fontFamily: "var(--font-nunito)", fontWeight: 900, fontSize: 15, letterSpacing: "-0.02em" }}
+        >
+          Ferreinox
+        </span>
+        <span
+          className="block text-stone"
+          style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.14em" }}
+        >
+          PAGOS PROV.
+        </span>
       </div>
 
-      <button
-        onClick={() => router.push("?search=1")}
-        className="mx-4 mb-4 flex items-center gap-2 rounded-md border border-line bg-parchment px-3 py-2 text-left text-sm text-stone transition-colors hover:border-stone hover:bg-cream/40"
-      >
-        <Search size={15} />
-        <span className="flex-1">Buscar todo...</span>
-        <kbd className="rounded border border-line bg-paper px-1.5 py-0.5 text-[10px] font-semibold text-stone">
-          ⌘K
-        </kbd>
-      </button>
-
-      <div className="flex-1 overflow-y-auto px-3 pb-4">
+      <div className="flex-1 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
-          <div key={section.label} className="mb-5">
-            <p className="mb-1.5 px-3 text-[11px] font-bold uppercase tracking-widest text-stone/70">
-              {section.label}
+          <div key={section.label}>
+            <p
+              className="text-stone"
+              style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", padding: "12px 6px 6px" }}
+            >
+              {section.label.toUpperCase()}
             </p>
             <ul className="flex flex-col gap-0.5">
               {section.items.map((item) => {
@@ -76,17 +68,18 @@ export function Sidebar() {
                     <Link
                       href={item.href}
                       className={cn(
-                        "group relative flex items-center gap-3 rounded-md py-2.5 pl-3.5 pr-3 text-sm font-semibold transition-all duration-150",
-                        isActive ? "bg-cream text-red-deep" : "text-graphite hover:bg-parchment"
+                        "flex items-center transition-colors",
+                        isActive ? "bg-cream-soft text-red-deep" : "text-graphite hover:bg-line-soft"
                       )}
+                      style={{
+                        padding: "7px 10px",
+                        fontSize: 12,
+                        fontWeight: isActive ? 700 : 400,
+                        borderRadius: isActive ? "0 8px 8px 0" : 8,
+                        borderLeft: isActive ? "3px solid var(--color-red)" : "3px solid transparent",
+                      }}
                     >
-                      <span
-                        className={cn(
-                          "absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-red transition-opacity",
-                          isActive ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      <Icon size={19} className={isActive ? "text-red-deep" : "text-stone group-hover:text-graphite"} />
+                      <Icon size={14} style={{ marginRight: 8 }} />
                       {item.label}
                     </Link>
                   </li>
