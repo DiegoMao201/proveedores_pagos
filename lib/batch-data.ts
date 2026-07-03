@@ -134,12 +134,18 @@ export async function getProviderReconciling(nombreNormalizado: string): Promise
   return res.json();
 }
 
+export type OrigenSaldado = "erp_dropbox" | "app_batch" | "app_batch_confirmado_erp";
+
 export interface ProviderPaidRow {
   invoice_key: string;
   num_factura: string;
   fecha_emision_erp: string | null;
   fecha_vencimiento_erp: string | null;
   valor_total_erp: number;
+  valor_pagado: number | null;
+  fecha_pago: string | null;
+  origen_saldado: OrigenSaldado;
+  payment_batch: { codigo_lote: string } | null;
 }
 
 // nombreErpLike: primera palabra del nombre display del proveedor (mismo patron
@@ -147,10 +153,23 @@ export interface ProviderPaidRow {
 // erp_paid.nombre_proveedor_erp es el nombre crudo del ERP, no normalizado.
 export async function getProviderPaid(nombreErpLike: string): Promise<ProviderPaidRow[]> {
   const res = await postgrestFetch(
-    `/erp_paid?nombre_proveedor_erp=ilike.*${encodeURIComponent(nombreErpLike)}*&select=invoice_key,num_factura,fecha_emision_erp,fecha_vencimiento_erp,valor_total_erp&order=fecha_emision_erp.desc&limit=100`,
+    `/erp_paid?nombre_proveedor_erp=ilike.*${encodeURIComponent(nombreErpLike)}*&select=invoice_key,num_factura,fecha_emision_erp,fecha_vencimiento_erp,valor_total_erp,valor_pagado,fecha_pago,origen_saldado,payment_batch(codigo_lote)&order=fecha_emision_erp.desc&limit=100`,
     {},
     "treasury"
   );
   if (!res.ok) throw new Error(`PostgREST /erp_paid -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
+}
+
+export interface DataFreshness {
+  erp_pending_last_sync: string | null;
+  erp_paid_last_sync: string | null;
+  minutes_since_sync: number | null;
+}
+
+export async function getDataFreshness(): Promise<DataFreshness | null> {
+  const res = await postgrestFetch("/v_data_freshness?select=*", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_data_freshness -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as DataFreshness[];
+  return rows[0] ?? null;
 }

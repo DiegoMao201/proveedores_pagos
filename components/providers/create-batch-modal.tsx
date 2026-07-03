@@ -2,14 +2,55 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, FileText, Wallet } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock, FileText, Wallet } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { Toast, useToast } from "@/components/ui/toast";
 import { FormField, inputClassName } from "@/components/ui/form-field";
 import { formatCompact, formatFull } from "@/lib/format";
 import { createBatch } from "@/lib/batch-actions";
-import type { ProviderInvoiceCalc, OwnBankAccountRow } from "@/lib/batch-data";
+import type { ProviderInvoiceCalc, OwnBankAccountRow, DataFreshness } from "@/lib/batch-data";
 import type { BankAccountRow } from "@/lib/bank-account-data";
+
+function FreshnessIndicator({ freshness }: { freshness: DataFreshness | null }) {
+  if (!freshness || freshness.minutes_since_sync == null) return null;
+  const minutes = freshness.minutes_since_sync;
+
+  let level: "fresh" | "stale" | "very_stale";
+  if (minutes < 360) level = "fresh";
+  else if (minutes < 1440) level = "stale";
+  else level = "very_stale";
+
+  const hours = Math.round(minutes / 60);
+  const days = Math.round(minutes / 1440);
+
+  const config = {
+    fresh: {
+      bg: "var(--color-line-soft)",
+      icon: <CheckCircle2 size={12} className="text-success" />,
+      text: `Datos sincronizados con el ERP hace ${Math.round(minutes)} min`,
+    },
+    stale: {
+      bg: "var(--color-cream-soft)",
+      icon: <Clock size={12} className="text-orange" />,
+      text: `⚠ Datos posiblemente desactualizados — última sync hace ${hours}h`,
+    },
+    very_stale: {
+      bg: "#FCEBEB",
+      icon: <AlertTriangle size={12} className="text-red-deep" />,
+      text: `⚠ Datos muy desactualizados — última sync hace ${days}d. Verificar antes de armar lote.`,
+    },
+  }[level];
+
+  return (
+    <div
+      className="mt-1.5 flex items-center gap-1.5 rounded-md px-2.5 py-1.5"
+      style={{ background: config.bg, borderLeft: level === "fresh" ? undefined : `3px solid ${level === "stale" ? "var(--color-orange)" : "var(--color-red-deep)"}` }}
+    >
+      {config.icon}
+      <span style={{ fontSize: 10 }}>{config.text}</span>
+    </div>
+  );
+}
 
 interface Totals {
   bruto: number;
@@ -29,6 +70,7 @@ export function CreateBatchModal({
   destAccounts,
   fechaPago,
   totals,
+  freshness,
   onCreated,
 }: {
   open: boolean;
@@ -41,6 +83,7 @@ export function CreateBatchModal({
   destAccounts: BankAccountRow[];
   fechaPago: string;
   totals: Totals;
+  freshness: DataFreshness | null;
   onCreated: () => void;
 }) {
   const router = useRouter();
@@ -93,6 +136,8 @@ export function CreateBatchModal({
             Descuento capturado: <span className="text-success font-semibold">{formatCompact(totals.descuento)}</span> · Retenciones:{" "}
             <span className="text-orange font-semibold">{formatCompact(totals.retencion)}</span>
           </p>
+
+          <FreshnessIndicator freshness={freshness} />
 
           <FormField label="Cuenta a debitar">
             <select className={inputClassName(false)} value={ownAccountId} onChange={(e) => setOwnAccountId(Number(e.target.value))}>

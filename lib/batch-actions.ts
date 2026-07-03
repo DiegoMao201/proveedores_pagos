@@ -43,7 +43,17 @@ export async function createBatch(input: {
   );
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
 
-  const result = (await res.json()) as { ok?: boolean; error?: string; batch_id?: number; codigo_lote?: string };
+  const result = (await res.json()) as {
+    ok?: boolean;
+    error?: string;
+    batch_id?: number;
+    codigo_lote?: string;
+    invoice_keys?: string[];
+  };
+  if (result.error === "INVOICE_ALREADY_IN_ACTIVE_BATCH") {
+    const facturas = (result.invoice_keys ?? []).map((k) => k.split("|")[1] ?? k).join(", ");
+    return { ok: false, error: `Estas facturas ya están en otro lote activo: ${facturas}` };
+  }
   if (result.error) return { ok: false, error: result.error };
 
   revalidatePath(`/proveedores/${input.providerId}`);

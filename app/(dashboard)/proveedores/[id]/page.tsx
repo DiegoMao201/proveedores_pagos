@@ -25,7 +25,7 @@ import { getActiveDiscountRulesFull, getInactiveDiscountRules } from "@/lib/disc
 import { getActiveRetentionRules, getInactiveRetentionRules } from "@/lib/retention-rule-data";
 import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
-import { getProviderInvoicesWithCalc, getOwnBankAccounts, getProviderReconciling, getProviderPaid } from "@/lib/batch-data";
+import { getProviderInvoicesWithCalc, getOwnBankAccounts, getProviderReconciling, getProviderPaid, getDataFreshness } from "@/lib/batch-data";
 
 function tomorrowIso(): string {
   const d = new Date();
@@ -92,6 +92,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     ownAccounts,
     reconciling,
     paid,
+    freshness,
   ] = await Promise.all([
     listProviders(),
     getActiveDiscountRulesFull(provider.id),
@@ -108,6 +109,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     getOwnBankAccounts(),
     getProviderReconciling(provider.nombre_normalizado),
     getProviderPaid(firstWord),
+    getDataFreshness(),
   ]);
 
   if (!providerFull) notFound();
@@ -199,6 +201,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
         destAccounts={bankAccounts}
         reconciling={reconciling}
         paid={paid}
+        freshness={freshness}
         canEdit={canEdit}
       />
 

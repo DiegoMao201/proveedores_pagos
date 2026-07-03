@@ -6,8 +6,50 @@ import { Card } from "@/components/ui/card";
 import { formatCompact, formatDateEs } from "@/lib/format";
 import { recalculateInvoices } from "@/lib/batch-actions";
 import { CreateBatchModal } from "@/components/providers/create-batch-modal";
-import type { ProviderInvoiceCalc, OwnBankAccountRow, ProviderReconcilingRow, ProviderPaidRow } from "@/lib/batch-data";
+import type {
+  ProviderInvoiceCalc,
+  OwnBankAccountRow,
+  ProviderReconcilingRow,
+  ProviderPaidRow,
+  DataFreshness,
+} from "@/lib/batch-data";
 import type { BankAccountRow } from "@/lib/bank-account-data";
+
+type SortKey = "descuento" | "valor" | "vencimiento" | "emision";
+
+function origenBadge(row: ProviderPaidRow) {
+  if (row.origen_saldado === "app_batch_confirmado_erp") {
+    return (
+      <span
+        className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold"
+        style={{ fontSize: 9, background: "var(--color-success-soft)", color: "var(--color-success)" }}
+        title="Pagado desde la app y confirmado por el ERP"
+      >
+        APP ✓ ERP{row.payment_batch ? ` · ${row.payment_batch.codigo_lote}` : ""}
+      </span>
+    );
+  }
+  if (row.origen_saldado === "app_batch") {
+    return (
+      <span
+        className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold"
+        style={{ fontSize: 9, background: "var(--color-cream-soft)", color: "var(--color-red-deep)" }}
+        title="Pagado desde la app, esperando confirmación del ERP"
+      >
+        APP → {row.payment_batch?.codigo_lote ?? "?"}
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 font-semibold"
+      style={{ fontSize: 9, background: "var(--color-line-soft)", color: "var(--color-graphite)" }}
+      title="Pago detectado desde el archivo del ERP"
+    >
+      ERP
+    </span>
+  );
+}
 
 function tomorrowIso(): string {
   const d = new Date();
@@ -44,16 +86,42 @@ function urgencyBadge(fechaVencimiento: string | null, esNotaCredito: boolean) {
   );
 }
 
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "descuento", label: "Descuento por perder" },
+  { key: "valor", label: "Valor descendente" },
+  { key: "vencimiento", label: "Vencimiento próximo" },
+  { key: "emision", label: "Emisión reciente" },
+];
+
+function sortInvoices(list: ProviderInvoiceCalc[], sortKey: SortKey): ProviderInvoiceCalc[] {
+  const copy = [...list];
+  switch (sortKey) {
+    case "valor":
+      return copy.sort((a, b) => b.valor_neto - a.valor_neto);
+    case "vencimiento":
+      return copy.sort((a, b) => {
+        if (!a.fecha_vencimiento) return 1;
+        if (!b.fecha_vencimiento) return -1;
+        return new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime();
+      });
+    case "emision":
+      return copy.sort((a, b) => new Date(b.fecha_emision).getTime() - new Date(a.fecha_emision).getTime());
+    case "descuento":
+    default:
+      return copy.sort((a, b) => b.valor_descuento - a.valor_descuento);
+  }
+}
+
 export function ProviderInvoiceWorkspace({
   providerId,
   providerNombre,
-  nombreNormalizado,
   nifDefault,
   initialInvoices,
   ownAccounts,
   destAccounts,
   reconciling,
   paid,
+  freshness,
   canEdit,
 }: {
   providerId: number;
@@ -65,6 +133,7 @@ export function ProviderInvoiceWorkspace({
   destAccounts: BankAccountRow[];
   reconciling: ProviderReconcilingRow[];
   paid: ProviderPaidRow[];
+  freshness: DataFreshness | null;
   canEdit: boolean;
 }) {
   const [tab, setTab] = useState<"pagar" | "conciliar" | "pagadas">("pagar");
@@ -73,6 +142,7 @@ export function ProviderInvoiceWorkspace({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
   const [modalOpen, setModalOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("descuento");
 
   useEffect(() => {
     startTransition(async () => {
@@ -91,6 +161,15 @@ export function ProviderInvoiceWorkspace({
     });
   }
 
+  function selectAllWithDiscount() {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      invoices.filter((i) => i.valor_descuento > 0).forEach((i) => next.add(i.invoice_key));
+      return next;
+    });
+  }
+
+  const sortedInvoices = useMemo(() => sortInvoices(invoices, sortKey), [invoices, sortKey]);
   const selectedInvoices = useMemo(() => invoices.filter((i) => selected.has(i.invoice_key)), [invoices, selected]);
   const totals = useMemo(() => {
     const bruto = selectedInvoices.reduce((s, i) => s + i.valor_bruto, 0);
@@ -131,9 +210,35 @@ export function ProviderInvoiceWorkspace({
 
       {tab === "pagar" && (
         <div className="flex flex-col gap-2">
-          <p className="text-stone" style={{ fontSize: 11 }}>
-            {invoices.length} facturas · {formatCompact(totalPendiente)} total pendiente
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-stone" style={{ fontSize: 11 }}>
+              {invoices.length} facturas · {formatCompact(totalPendiente)} total pendiente
+            </p>
+            <div className="flex items-center gap-2">
+              {canEdit && invoices.some((i) => i.valor_descuento > 0) && (
+                <button
+                  type="button"
+                  onClick={selectAllWithDiscount}
+                  className="rounded-md bg-cream-soft px-2.5 py-1 font-semibold text-red-deep"
+                  style={{ fontSize: 10 }}
+                >
+                  Seleccionar con descuento vigente ⚡
+                </button>
+              )}
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className="rounded-md border border-line bg-paper px-2 py-1 text-stone"
+                style={{ fontSize: 10 }}
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           {invoices.length === 0 ? (
             <Card className="flex flex-col items-center gap-2 py-10 text-center">
               <Wallet size={32} className="text-stone" />
@@ -157,9 +262,17 @@ export function ProviderInvoiceWorkspace({
                     </tr>
                   </thead>
                   <tbody>
-                    {invoices.map((inv) => {
+                    {sortedInvoices.map((inv) => {
                       const isSelected = selected.has(inv.invoice_key);
                       const retTotal = inv.valor_retencion_fuente + inv.valor_retencion_ica + inv.valor_retencion_iva + inv.valor_retencion_otros;
+                      const retDetalle = [
+                        inv.valor_retencion_fuente > 0 ? `Fuente: −${formatCompact(inv.valor_retencion_fuente)}` : null,
+                        inv.valor_retencion_ica > 0 ? `ICA: −${formatCompact(inv.valor_retencion_ica)}` : null,
+                        inv.valor_retencion_iva > 0 ? `IVA: −${formatCompact(inv.valor_retencion_iva)}` : null,
+                        inv.valor_retencion_otros > 0 ? `Otros: −${formatCompact(inv.valor_retencion_otros)}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ");
                       return (
                         <tr
                           key={inv.invoice_key}
@@ -184,7 +297,7 @@ export function ProviderInvoiceWorkspace({
                               <span className="text-stone">Sin dcto</span>
                             )}
                           </td>
-                          <td className="num px-3 py-2 text-right">
+                          <td className="num px-3 py-2 text-right" title={retDetalle || undefined}>
                             {retTotal > 0 ? <span className="text-orange">−{formatCompact(retTotal)}</span> : <span className="text-stone">—</span>}
                           </td>
                           <td className="num px-3 py-2 text-right font-semibold text-ink">{formatCompact(inv.valor_neto)}</td>
@@ -248,6 +361,8 @@ export function ProviderInvoiceWorkspace({
                   <th className="px-3 py-2 text-left">Factura</th>
                   <th className="px-3 py-2 text-left">Emisión</th>
                   <th className="px-3 py-2 text-right">Valor</th>
+                  <th className="px-3 py-2 text-left">Origen</th>
+                  <th className="px-3 py-2 text-left">Fecha pago</th>
                 </tr>
               </thead>
               <tbody>
@@ -255,7 +370,9 @@ export function ProviderInvoiceWorkspace({
                   <tr key={r.invoice_key} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 text-ink">{r.num_factura}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_emision_erp ? formatDateEs(r.fecha_emision_erp) : "—"}</td>
-                    <td className="num px-3 py-2 text-right text-ink">{formatCompact(r.valor_total_erp)}</td>
+                    <td className="num px-3 py-2 text-right text-ink">{formatCompact(r.valor_pagado ?? r.valor_total_erp)}</td>
+                    <td className="px-3 py-2">{origenBadge(r)}</td>
+                    <td className="px-3 py-2 text-stone">{r.fecha_pago ? formatDateEs(r.fecha_pago) : "—"}</td>
                   </tr>
                 ))}
               </tbody>
@@ -345,6 +462,7 @@ export function ProviderInvoiceWorkspace({
         ownAccounts={ownAccounts}
         destAccounts={destAccounts}
         fechaPago={fechaPago}
+        freshness={freshness}
         totals={totals}
         onCreated={() => setSelected(new Set())}
       />
