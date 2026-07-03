@@ -1,6 +1,5 @@
 import "server-only";
 import { postgrestFetch } from "@/lib/postgrest";
-import { calculateCapturableDiscounts, type PendingInvoiceForDiscount } from "@/lib/discount-rules";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
 
@@ -105,15 +104,3 @@ export async function getPaymentRunway(): Promise<{ d7: number; d15: number; d30
   return { d7: sumUntil(7), d15: sumUntil(15), d30: sumUntil(30) };
 }
 
-export async function getCapturableDiscountTotal(): Promise<{ total: number; count: number; nearestDeadline: string | null }> {
-  const rows = await fetchTreasury<PendingInvoiceForDiscount[]>(
-    "/erp_pending?select=nombre_proveedor_erp,fecha_emision_erp,valor_total_erp"
-  );
-  const capturable = calculateCapturableDiscounts(rows);
-  const total = capturable.reduce((sum, c) => sum + c.valorDescuento, 0);
-  const nearestDeadline = capturable.length
-    ? capturable.reduce((min, c) => (c.deadline < min ? c.deadline : min), capturable[0].deadline)
-    : null;
-
-  return { total, count: capturable.length, nearestDeadline };
-}

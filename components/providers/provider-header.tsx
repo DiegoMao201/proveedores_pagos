@@ -1,12 +1,17 @@
-import { FileDigit, CalendarClock, Percent, Mail } from "lucide-react";
+import { FileDigit, CalendarClock, Mail } from "lucide-react";
 import { HealthBadge } from "@/components/providers/health-badge";
 import { formatCompact } from "@/lib/format";
+
+interface DiscountChipRule {
+  dias_max: number;
+  tasa_descuento: number;
+}
 
 interface ProviderHeaderProps {
   nombre: string;
   nif: string | null;
   plazoPagoDias: number | null;
-  discountSummary: string | null;
+  discountRules: DiscountChipRule[];
   emailPago: string | null;
   healthScore: number;
   facturacion12m: number;
@@ -16,7 +21,7 @@ export function ProviderHeader({
   nombre,
   nif,
   plazoPagoDias,
-  discountSummary,
+  discountRules,
   emailPago,
   healthScore,
   facturacion12m,
@@ -64,15 +69,32 @@ export function ProviderHeader({
               <CalendarClock size={11} /> Plazo {plazoPagoDias}d
             </span>
           )}
-          {discountSummary && (
-            <span className="flex items-center gap-1" style={{ fontSize: 10 }}>
-              <Percent size={11} /> {discountSummary}
-            </span>
-          )}
           {emailPago && (
             <span className="flex items-center gap-1" style={{ fontSize: 10 }}>
               <Mail size={11} /> {emailPago}
             </span>
+          )}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center" style={{ gap: 5 }}>
+          <span className="text-stone" style={{ fontSize: 9, fontWeight: 700 }}>
+            Descuentos:
+          </span>
+          {discountRules.length === 0 ? (
+            <span className="text-stone" style={{ fontSize: 10 }}>
+              Sin descuentos configurados
+            </span>
+          ) : (
+            [...discountRules]
+              .sort((a, b) => a.dias_max - b.dias_max)
+              .map((r) => (
+                <span
+                  key={r.dias_max}
+                  className="inline-flex items-center rounded-full bg-cream-soft text-red-deep"
+                  style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px" }}
+                >
+                  {(r.tasa_descuento * 100).toFixed(0)}%·{r.dias_max}d
+                </span>
+              ))
           )}
         </div>
       </div>

@@ -1,0 +1,172 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
+import { postgrestFetch } from "@/lib/postgrest";
+import { previewDiscountImpact as previewDiscountImpactData, type DiscountPreview } from "@/lib/discount-rule-data";
+
+export async function previewDiscountImpact(
+  providerId: number,
+  diasMax: number,
+  tasaDescuento: number,
+  excludeRuleId?: number
+): Promise<DiscountPreview> {
+  return previewDiscountImpactData(providerId, diasMax, tasaDescuento, excludeRuleId);
+}
+
+async function currentUserId(): Promise<string | null> {
+  const session = await auth();
+  return session?.user.id ?? null;
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function yesterdayIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export interface DiscountRuleInput {
+  dias_max: number;
+  tasa_descuento: number;
+  nombre_regla: string | null;
+  aplica_a_notas_credito: boolean;
+}
+
+async function getNextPeldano(providerId: number): Promise<number> {
+  const res = await postgrestFetch(
+    `/discount_rule?provider_id=eq.${providerId}&activa=eq.true&valid_to=is.null&select=peldano_orden&order=peldano_orden.desc&limit=1`,
+    {},
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST /discount_rule -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as { peldano_orden: number }[];
+  return (rows[0]?.peldano_orden ?? 0) + 1;
+}
+
+export async function createDiscountRule(providerId: number, data: DiscountRuleInput) {
+  const userId = await currentUserId();
+  const peldanoOrden = await getNextPeldano(providerId);
+
+  const res = await postgrestFetch(
+    "/discount_rule",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider_id: providerId,
+        peldano_orden: peldanoOrden,
+        dias_max: data.dias_max,
+        tasa_descuento: data.tasa_descuento,
+        nombre_regla: data.nombre_regla,
+        aplica_a_notas_credito: data.aplica_a_notas_credito,
+        valid_from: todayIso(),
+        activa: true,
+        created_by: userId,
+        updated_by: userId,
+      }),
+    },
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST POST /discount_rule -> HTTP ${res.status}: ${await res.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+  revalidatePath("/reglas-descuento");
+}
+
+export async function editDiscountRule(ruleId: number, providerId: number, peldanoOrden: number, data: DiscountRuleInput) {
+  const userId = await currentUserId();
+
+  // Versionado estricto (regla H.2): nunca se modifica la fila vigente. Se cierra
+  // (valid_to = ayer) y se crea una nueva con el mismo peldano_orden. Las facturas
+  // emitidas antes conservan la regla vieja via calculate_discount's valid_from/valid_to.
+  const closeRes = await postgrestFetch(
+    `/discount_rule?id=eq.${ruleId}`,
+    { method: "PATCH", body: JSON.stringify({ valid_to: yesterdayIso(), updated_by: userId }) },
+    "providers"
+  );
+  if (!closeRes.ok) throw new Error(`PostgREST PATCH /discount_rule -> HTTP ${closeRes.status}: ${await closeRes.text()}`);
+
+  const createRes = await postgrestFetch(
+    "/discount_rule",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider_id: providerId,
+        peldano_orden: peldanoOrden,
+        dias_max: data.dias_max,
+        tasa_descuento: data.tasa_descuento,
+        nombre_regla: data.nombre_regla,
+        aplica_a_notas_credito: data.aplica_a_notas_credito,
+        valid_from: todayIso(),
+        activa: true,
+        created_by: userId,
+        updated_by: userId,
+      }),
+    },
+    "providers"
+  );
+  if (!createRes.ok) throw new Error(`PostgREST POST /discount_rule -> HTTP ${createRes.status}: ${await createRes.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+  revalidatePath("/reglas-descuento");
+}
+
+export async function deactivateDiscountRule(ruleId: number, providerId: number, motivo: string) {
+  const userId = await currentUserId();
+  const existingRes = await postgrestFetch(`/discount_rule?id=eq.${ruleId}&select=notes`, {}, "providers");
+  const existing = existingRes.ok ? ((await existingRes.json()) as { notes: string | null }[])[0] : null;
+  const notes = [existing?.notes, motivo ? `Desactivada: ${motivo}` : "Desactivada"].filter(Boolean).join("\n");
+
+  const res = await postgrestFetch(
+    `/discount_rule?id=eq.${ruleId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ activa: false, valid_to: todayIso(), updated_by: userId, notes }),
+    },
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST PATCH /discount_rule -> HTTP ${res.status}: ${await res.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+  revalidatePath("/reglas-descuento");
+}
+
+export async function reactivateDiscountRule(ruleId: number, providerId: number) {
+  const userId = await currentUserId();
+  const res = await postgrestFetch(`/discount_rule?id=eq.${ruleId}&select=*`, {}, "providers");
+  if (!res.ok) throw new Error(`PostgREST /discount_rule -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as {
+    peldano_orden: number;
+    dias_max: number;
+    tasa_descuento: number;
+    nombre_regla: string | null;
+    aplica_a_notas_credito: boolean;
+  }[];
+  const rule = rows[0];
+  if (!rule) throw new Error("Regla no encontrada");
+
+  const peldanoOrden = await getNextPeldano(providerId);
+
+  const createRes = await postgrestFetch(
+    "/discount_rule",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider_id: providerId,
+        peldano_orden: peldanoOrden,
+        dias_max: rule.dias_max,
+        tasa_descuento: rule.tasa_descuento,
+        nombre_regla: rule.nombre_regla,
+        aplica_a_notas_credito: rule.aplica_a_notas_credito,
+        valid_from: todayIso(),
+        activa: true,
+        created_by: userId,
+        updated_by: userId,
+      }),
+    },
+    "providers"
+  );
+  if (!createRes.ok) throw new Error(`PostgREST POST /discount_rule -> HTTP ${createRes.status}: ${await createRes.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+  revalidatePath("/reglas-descuento");
+}

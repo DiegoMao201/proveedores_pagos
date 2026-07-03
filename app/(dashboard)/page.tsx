@@ -9,10 +9,10 @@ import {
   getDashboardKpis,
   getPendingAging,
   getPaymentCalendar,
-  getCapturableDiscountTotal,
   getPaymentRunway,
   type DashboardKpis,
 } from "@/lib/dashboard-data";
+import { getCapturableDiscountTotal } from "@/lib/discount-data";
 import { getRebateDashboardSummary, type RebateSummary } from "@/lib/rebate-data";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";

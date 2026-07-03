@@ -6,10 +6,10 @@ import {
   getReconciled,
   getEmailWithoutErp,
   getErpWithoutEmail,
-  getDiscountAlerts,
   getReconciliationKpis,
   getReconciliationDiffs,
 } from "@/lib/conciliacion-data";
+import { getDiscountAlerts } from "@/lib/discount-data";
 import { formatCurrency, formatCompact, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 interface PageProps {
@@ -54,7 +54,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     };
     kpis = kpisResult;
     diffs = diffsResult;
-    alertsTotal = alerts.reduce((sum, a) => sum + a.valorDescuento, 0);
+    alertsTotal = alerts.reduce((sum, a) => sum + a.ahorro_potencial, 0);
 
     if (tab === "conciliadas") {
       content = (
@@ -185,9 +185,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             <thead className="bg-parchment text-left text-xs font-semibold uppercase tracking-wide text-stone">
               <tr>
                 <th className="px-6 py-3">Proveedor</th>
-                <th className="px-4 py-3 text-right">Tasa</th>
+                <th className="px-4 py-3">Peldaño</th>
                 <th className="px-4 py-3 text-right">Ahorro</th>
-                <th className="px-4 py-3">Vence</th>
+                <th className="px-4 py-3">Emitida</th>
                 <th className="px-6 py-3">Urgencia</th>
               </tr>
             </thead>
@@ -195,9 +195,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
               {alerts.map((row) => (
                 <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
                   <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
-                  <td className="num px-4 py-3 text-right">{(row.rate * 100).toFixed(1)}%</td>
-                  <td className="num px-4 py-3 text-right text-success">−{formatCurrency(row.valorDescuento)}</td>
-                  <td className="date px-4 py-3">{formatDateEs(row.deadline)}</td>
+                  <td className="px-4 py-3 text-stone">{row.peldano_aplicable}</td>
+                  <td className="num px-4 py-3 text-right text-success">−{formatCurrency(row.ahorro_potencial)}</td>
+                  <td className="date px-4 py-3">{formatDateEs(row.fecha_emision)}</td>
                   <td className="px-6 py-3">
                     <span
                       className="inline-block text-white"
@@ -206,10 +206,11 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                         padding: "3px 9px",
                         fontSize: 10,
                         fontWeight: 800,
-                        background: row.daysLeft <= 0 ? "var(--color-red-deep)" : row.daysLeft <= 2 ? "var(--color-red)" : "var(--color-orange)",
+                        background:
+                          row.dias_restantes <= 0 ? "var(--color-red-deep)" : row.dias_restantes <= 2 ? "var(--color-red)" : "var(--color-orange)",
                       }}
                     >
-                      {row.daysLeft <= 0 ? "Hoy" : `${row.daysLeft}d`}
+                      {row.dias_restantes <= 0 ? "Hoy" : `${row.dias_restantes}d`}
                     </span>
                   </td>
                 </tr>

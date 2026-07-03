@@ -71,11 +71,6 @@ export async function getProviderHistory(providerId: number, limit = 20, offset 
   return res.json();
 }
 
-export interface DiscountRuleRow {
-  dias_max: number;
-  tasa_descuento: number;
-}
-
 async function fetchProviders(path: string): Promise<ProviderRow[]> {
   const res = await postgrestFetch(path, {}, "providers");
   if (!res.ok) throw new Error(`PostgREST ${path} -> HTTP ${res.status}: ${await res.text()}`);
@@ -89,21 +84,6 @@ export async function listProviders(): Promise<ProviderRow[]> {
 export async function getProviderById(id: number): Promise<ProviderRow | null> {
   const rows = await fetchProviders(`/provider?id=eq.${id}&select=id,nombre,nombre_normalizado,nif,plazo_pago_dias,email_pago,activo`);
   return rows[0] ?? null;
-}
-
-export async function getDiscountRules(providerId: number): Promise<DiscountRuleRow[]> {
-  const res = await postgrestFetch(
-    `/discount_rule?provider_id=eq.${providerId}&valid_to=is.null&select=dias_max,tasa_descuento&order=dias_max.asc`,
-    {},
-    "providers"
-  );
-  if (!res.ok) throw new Error(`PostgREST /discount_rule -> HTTP ${res.status}: ${await res.text()}`);
-  return res.json();
-}
-
-export function discountSummaryText(rules: DiscountRuleRow[]): string | null {
-  if (rules.length === 0) return null;
-  return rules.map((r) => `${(r.tasa_descuento * 100).toFixed(0)}% a ${r.dias_max}d`).join(" · ");
 }
 
 export interface ProviderInvoiceSummary {

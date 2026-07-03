@@ -11,17 +11,17 @@ import { EditableConditionsForm } from "@/components/providers/editable-conditio
 import { EditableContactsForm } from "@/components/providers/editable-contacts-form";
 import { BankAccountsTab } from "@/components/providers/bank-accounts-tab";
 import { ProviderHistoryTab } from "@/components/providers/provider-history-tab";
+import { DiscountRulesTab } from "@/components/providers/discount-rules-tab";
 import {
   getProviderById,
   getProviderFull,
   listProviders,
-  getDiscountRules,
-  discountSummaryText,
   getProviderInvoiceSummary,
   getProviderHistory,
 } from "@/lib/provider-detail-data";
+import { getActiveDiscountRulesFull, getInactiveDiscountRules } from "@/lib/discount-rule-data";
 import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
-import { getCapturableDiscountTotal } from "@/lib/dashboard-data";
+import { getCapturableDiscountTotal } from "@/lib/discount-data";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -63,16 +63,18 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     );
   }
 
-  const [allProviders, discountRules, invoiceSummary, discounts, providerFull, bankAccounts, bankCatalog, history] = await Promise.all([
-    listProviders(),
-    getDiscountRules(provider.id),
-    getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
-    getCapturableDiscountTotal(),
-    getProviderFull(provider.id),
-    getBankAccounts(provider.id),
-    getBankCatalog(),
-    getProviderHistory(provider.id, 20, 0),
-  ]);
+  const [allProviders, activeDiscountRules, inactiveDiscountRules, invoiceSummary, discounts, providerFull, bankAccounts, bankCatalog, history] =
+    await Promise.all([
+      listProviders(),
+      getActiveDiscountRulesFull(provider.id),
+      getInactiveDiscountRules(provider.id),
+      getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
+      getCapturableDiscountTotal(),
+      getProviderFull(provider.id),
+      getBankAccounts(provider.id),
+      getBankCatalog(),
+      getProviderHistory(provider.id, 20, 0),
+    ]);
 
   if (!providerFull) notFound();
 
@@ -81,7 +83,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     provider.nif,
     provider.email_pago,
     provider.plazo_pago_dias,
-    discountRules.length > 0 ? "yes" : null,
+    activeDiscountRules.length > 0 ? "yes" : null,
   ]);
 
   const providerDiscounts = discounts.count > 0 ? Math.round(discounts.total / discounts.count) : 0;
@@ -108,11 +110,12 @@ export default async function ProviderDetailPage({ params }: PageProps) {
       key: "descuentos",
       label: "Descuentos por pronto pago",
       content: (
-        <Card>
-          <p className="text-stone" style={{ fontSize: 11 }}>
-            {discountSummaryText(discountRules) ?? "Sin reglas de descuento configuradas."} Edición de reglas llega en B2.2.
-          </p>
-        </Card>
+        <DiscountRulesTab
+          providerId={provider.id}
+          activeRules={activeDiscountRules}
+          inactiveRules={inactiveDiscountRules}
+          canEdit={canEdit}
+        />
       ),
     },
     {
@@ -137,7 +140,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
         nombre={provider.nombre}
         nif={provider.nif}
         plazoPagoDias={provider.plazo_pago_dias}
-        discountSummary={discountSummaryText(discountRules)}
+        discountRules={activeDiscountRules}
         emailPago={provider.email_pago}
         healthScore={healthScore}
         facturacion12m={invoiceSummary.facturacion12m}

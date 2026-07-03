@@ -9,7 +9,8 @@ import { AgingPanel } from "@/components/cartera/aging-panel";
 import { ConcentrationBars } from "@/components/cartera/concentration-bars";
 import { CashflowBars } from "@/components/cartera/cashflow-bars";
 import { getPending, getPendingByKey, type ErpPending } from "@/lib/cartera-data";
-import { getCapturableDiscountTotal, getPendingAging } from "@/lib/dashboard-data";
+import { getPendingAging } from "@/lib/dashboard-data";
+import { getCapturableDiscountTotal } from "@/lib/discount-data";
 import {
   getPendingKpis,
   getProviderConcentration,

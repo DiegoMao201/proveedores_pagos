@@ -1,6 +1,5 @@
 import "server-only";
 import { postgrestFetch } from "@/lib/postgrest";
-import { calculateCapturableDiscounts } from "@/lib/discount-rules";
 
 export interface ReconciledRow {
   invoice_key: string;
@@ -48,15 +47,6 @@ export interface ErpWithoutEmailRow {
   fecha_vencimiento_erp: string | null;
   valor_total_erp: number;
   estado_erp: "pendiente" | "saldada";
-}
-
-export interface DiscountAlertRow {
-  invoice_key: string;
-  nombre_proveedor_erp: string;
-  rate: number;
-  deadline: string;
-  valorDescuento: number;
-  daysLeft: number;
 }
 
 interface PagedResult<T> {
@@ -123,36 +113,3 @@ export async function getReconciliationDiffs(): Promise<ReconciliationDiffRow[]>
   return res.json();
 }
 
-export async function getDiscountAlerts(maxDays = 5): Promise<DiscountAlertRow[]> {
-  const res = await postgrestFetch(
-    "/erp_pending?select=invoice_key,nombre_proveedor_erp,fecha_emision_erp,valor_total_erp",
-    {},
-    "treasury"
-  );
-  if (!res.ok) throw new Error(`PostgREST /erp_pending -> HTTP ${res.status}: ${await res.text()}`);
-  const rows = (await res.json()) as {
-    invoice_key: string;
-    nombre_proveedor_erp: string;
-    fecha_emision_erp: string | null;
-    valor_total_erp: number;
-  }[];
-
-  const today = new Date();
-  const capturable = calculateCapturableDiscounts(rows);
-
-  return capturable
-    .map((c) => {
-      const deadline = new Date(c.deadline);
-      const daysLeft = Math.round((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      return {
-        invoice_key: c.invoice_key ?? c.nombre_proveedor_erp,
-        nombre_proveedor_erp: c.nombre_proveedor_erp,
-        rate: c.rate,
-        deadline: c.deadline,
-        valorDescuento: c.valorDescuento,
-        daysLeft,
-      };
-    })
-    .filter((c) => c.daysLeft <= maxDays)
-    .sort((a, b) => a.daysLeft - b.daysLeft);
-}
