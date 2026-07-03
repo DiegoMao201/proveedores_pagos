@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, TrendingUp, Layers, BarChart3, Percent } from "lucide-react";
+import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV_SECTIONS = [
@@ -24,6 +24,7 @@ const NAV_SECTIONS = [
       { href: "/analisis/cartera", label: "Cartera", icon: BarChart3 },
       { href: "/analisis/conciliacion", label: "Conciliación", icon: BarChart3 },
       { href: "/reglas-descuento", label: "Reglas de descuento", icon: Percent },
+      { href: "/reglas-retencion", label: "Reglas de retención", icon: Receipt },
     ],
   },
 ];

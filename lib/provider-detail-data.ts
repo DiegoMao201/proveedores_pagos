@@ -35,12 +35,15 @@ export interface ProviderFull {
   limite_credito: number | null;
   dia_corte_pagos: number | null;
   anomaly_detection: boolean;
+  es_autoretenedor: boolean;
+  actividad_economica: string | null;
+  municipio_ica: string | null;
 }
 
 const PROVIDER_FULL_SELECT =
   "id,codigo_proveedor,nif,nombre,nombre_normalizado,activo,categoria_proveedor,email_pago,email_cc,email_alertas," +
   "contacto_pagos,contacto_tesoreria,contacto_cargo,telefono,condiciones_comerciales,observaciones,plazo_pago_dias," +
-  "forma_pago,limite_credito,dia_corte_pagos,anomaly_detection";
+  "forma_pago,limite_credito,dia_corte_pagos,anomaly_detection,es_autoretenedor,actividad_economica,municipio_ica";
 
 export async function getProviderFull(id: number): Promise<ProviderFull | null> {
   const res = await postgrestFetch(`/provider?id=eq.${id}&select=${PROVIDER_FULL_SELECT}`, {}, "providers");

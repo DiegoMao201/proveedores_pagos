@@ -12,6 +12,7 @@ import { EditableContactsForm } from "@/components/providers/editable-contacts-f
 import { BankAccountsTab } from "@/components/providers/bank-accounts-tab";
 import { ProviderHistoryTab } from "@/components/providers/provider-history-tab";
 import { DiscountRulesTab } from "@/components/providers/discount-rules-tab";
+import { RetentionRulesTab } from "@/components/providers/retention-rules-tab";
 import {
   getProviderById,
   getProviderFull,
@@ -20,6 +21,7 @@ import {
   getProviderHistory,
 } from "@/lib/provider-detail-data";
 import { getActiveDiscountRulesFull, getInactiveDiscountRules } from "@/lib/discount-rule-data";
+import { getActiveRetentionRules, getInactiveRetentionRules } from "@/lib/retention-rule-data";
 import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
 
@@ -63,18 +65,31 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     );
   }
 
-  const [allProviders, activeDiscountRules, inactiveDiscountRules, invoiceSummary, discounts, providerFull, bankAccounts, bankCatalog, history] =
-    await Promise.all([
-      listProviders(),
-      getActiveDiscountRulesFull(provider.id),
-      getInactiveDiscountRules(provider.id),
-      getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
-      getCapturableDiscountTotal(),
-      getProviderFull(provider.id),
-      getBankAccounts(provider.id),
-      getBankCatalog(),
-      getProviderHistory(provider.id, 20, 0),
-    ]);
+  const [
+    allProviders,
+    activeDiscountRules,
+    inactiveDiscountRules,
+    activeRetentionRules,
+    inactiveRetentionRules,
+    invoiceSummary,
+    discounts,
+    providerFull,
+    bankAccounts,
+    bankCatalog,
+    history,
+  ] = await Promise.all([
+    listProviders(),
+    getActiveDiscountRulesFull(provider.id),
+    getInactiveDiscountRules(provider.id),
+    getActiveRetentionRules(provider.id),
+    getInactiveRetentionRules(provider.id),
+    getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
+    getCapturableDiscountTotal(),
+    getProviderFull(provider.id),
+    getBankAccounts(provider.id),
+    getBankCatalog(),
+    getProviderHistory(provider.id, 20, 0),
+  ]);
 
   if (!providerFull) notFound();
 
@@ -122,11 +137,13 @@ export default async function ProviderDetailPage({ params }: PageProps) {
       key: "retenciones",
       label: "Retenciones",
       content: (
-        <Card>
-          <p className="text-stone" style={{ fontSize: 11 }}>
-            Sin retenciones configuradas. Edición llega en B2.3.
-          </p>
-        </Card>
+        <RetentionRulesTab
+          providerId={provider.id}
+          esAutoretenedor={providerFull.es_autoretenedor}
+          activeRules={activeRetentionRules}
+          inactiveRules={inactiveRetentionRules}
+          canEdit={canEdit}
+        />
       ),
     },
     { key: "historial", label: "Historial de cambios", content: <ProviderHistoryTab history={history} /> },
