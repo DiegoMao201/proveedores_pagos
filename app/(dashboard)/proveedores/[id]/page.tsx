@@ -13,6 +13,7 @@ import { BankAccountsTab } from "@/components/providers/bank-accounts-tab";
 import { ProviderHistoryTab } from "@/components/providers/provider-history-tab";
 import { DiscountRulesTab } from "@/components/providers/discount-rules-tab";
 import { RetentionRulesTab } from "@/components/providers/retention-rules-tab";
+import { ProviderInvoiceWorkspace } from "@/components/providers/provider-invoice-workspace";
 import {
   getProviderById,
   getProviderFull,
@@ -24,6 +25,13 @@ import { getActiveDiscountRulesFull, getInactiveDiscountRules } from "@/lib/disc
 import { getActiveRetentionRules, getInactiveRetentionRules } from "@/lib/retention-rule-data";
 import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
+import { getProviderInvoicesWithCalc, getOwnBankAccounts, getProviderReconciling, getProviderPaid } from "@/lib/batch-data";
+
+function tomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -65,6 +73,9 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     );
   }
 
+  const firstWord = provider.nombre.split(" ")[0];
+  const fechaPago = tomorrowIso();
+
   const [
     allProviders,
     activeDiscountRules,
@@ -77,18 +88,26 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     bankAccounts,
     bankCatalog,
     history,
+    invoicesWithCalc,
+    ownAccounts,
+    reconciling,
+    paid,
   ] = await Promise.all([
     listProviders(),
     getActiveDiscountRulesFull(provider.id),
     getInactiveDiscountRules(provider.id),
     getActiveRetentionRules(provider.id),
     getInactiveRetentionRules(provider.id),
-    getProviderInvoiceSummary(provider.nombre_normalizado, provider.nombre.split(" ")[0]),
+    getProviderInvoiceSummary(provider.nombre_normalizado, firstWord),
     getCapturableDiscountTotal(),
     getProviderFull(provider.id),
     getBankAccounts(provider.id),
     getBankCatalog(),
     getProviderHistory(provider.id, 20, 0),
+    getProviderInvoicesWithCalc(provider.id, fechaPago),
+    getOwnBankAccounts(),
+    getProviderReconciling(provider.nombre_normalizado),
+    getProviderPaid(firstWord),
   ]);
 
   if (!providerFull) notFound();
@@ -165,9 +184,22 @@ export default async function ProviderDetailPage({ params }: PageProps) {
 
       <ProviderKPIGrid
         porPagar={{ total: invoiceSummary.porPagarTotal, count: invoiceSummary.porPagarCount }}
-        porConciliar={{ count: 0, total: 0 }}
+        porConciliar={{ count: reconciling.length, total: reconciling.reduce((s, r) => s + r.valor_total_correo, 0) }}
         capturable={providerDiscounts}
         rebateLabel="—"
+      />
+
+      <ProviderInvoiceWorkspace
+        providerId={provider.id}
+        providerNombre={provider.nombre}
+        nombreNormalizado={provider.nombre_normalizado}
+        nifDefault={provider.nif}
+        initialInvoices={invoicesWithCalc}
+        ownAccounts={ownAccounts}
+        destAccounts={bankAccounts}
+        reconciling={reconciling}
+        paid={paid}
+        canEdit={canEdit}
       />
 
       <SectionTabs tabs={tabs} />
