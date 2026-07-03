@@ -5,6 +5,8 @@ export interface ProviderInvoiceCalc {
   invoice_key: string;
   erp_pending_id: number;
   num_factura: string;
+  num_factura_erp_interno: string | null;
+  tiene_correo_asociado: boolean;
   fecha_emision: string;
   fecha_vencimiento: string | null;
   es_nota_credito: boolean;

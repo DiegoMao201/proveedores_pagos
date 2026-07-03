@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useEffect } from "react";
 import { Wallet, Inbox, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { formatCompact, formatDateEs } from "@/lib/format";
+import { formatCompact, formatFull, formatDateEs } from "@/lib/format";
 import { recalculateInvoices } from "@/lib/batch-actions";
 import { CreateBatchModal } from "@/components/providers/create-batch-modal";
 import type {
@@ -266,10 +266,10 @@ export function ProviderInvoiceWorkspace({
                       const isSelected = selected.has(inv.invoice_key);
                       const retTotal = inv.valor_retencion_fuente + inv.valor_retencion_ica + inv.valor_retencion_iva + inv.valor_retencion_otros;
                       const retDetalle = [
-                        inv.valor_retencion_fuente > 0 ? `Fuente: −${formatCompact(inv.valor_retencion_fuente)}` : null,
-                        inv.valor_retencion_ica > 0 ? `ICA: −${formatCompact(inv.valor_retencion_ica)}` : null,
-                        inv.valor_retencion_iva > 0 ? `IVA: −${formatCompact(inv.valor_retencion_iva)}` : null,
-                        inv.valor_retencion_otros > 0 ? `Otros: −${formatCompact(inv.valor_retencion_otros)}` : null,
+                        inv.valor_retencion_fuente > 0 ? `Fuente: −${formatFull(inv.valor_retencion_fuente)}` : null,
+                        inv.valor_retencion_ica > 0 ? `ICA: −${formatFull(inv.valor_retencion_ica)}` : null,
+                        inv.valor_retencion_iva > 0 ? `IVA: −${formatFull(inv.valor_retencion_iva)}` : null,
+                        inv.valor_retencion_otros > 0 ? `Otros: −${formatFull(inv.valor_retencion_otros)}` : null,
                       ]
                         .filter(Boolean)
                         .join(" · ");
@@ -284,23 +284,39 @@ export function ProviderInvoiceWorkspace({
                             <input type="checkbox" checked={isSelected} disabled={!canEdit} readOnly style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }} />
                           </td>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-ink">{inv.num_factura}</p>
-                            <p className="text-stone" style={{ fontSize: 9.5 }}>
-                              Emitida {formatDateEs(inv.fecha_emision)}
+                            <p className="font-semibold text-ink" style={{ fontSize: 12 }}>
+                              {inv.num_factura}
+                              {!inv.tiene_correo_asociado && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center rounded"
+                                  style={{ fontSize: 9, fontWeight: 700, background: "var(--color-cream)", color: "var(--color-graphite)", padding: "1px 5px" }}
+                                >
+                                  Sin XML
+                                </span>
+                              )}
                             </p>
+                            {inv.num_factura_erp_interno && inv.num_factura_erp_interno !== inv.num_factura ? (
+                              <p className="text-stone" style={{ fontSize: 9.5 }}>
+                                Interno: {inv.num_factura_erp_interno} · Emitida {formatDateEs(inv.fecha_emision)}
+                              </p>
+                            ) : (
+                              <p className="text-stone" style={{ fontSize: 9.5 }}>
+                                Emitida {formatDateEs(inv.fecha_emision)}
+                              </p>
+                            )}
                           </td>
-                          <td className="num px-3 py-2 text-right text-ink">{formatCompact(inv.valor_bruto)}</td>
+                          <td className="num px-3 py-2 text-right text-ink">{formatFull(inv.valor_bruto)}</td>
                           <td className="num px-3 py-2 text-right">
                             {inv.valor_descuento > 0 ? (
-                              <span className="text-success">−{formatCompact(inv.valor_descuento)}</span>
+                              <span className="text-success">−{formatFull(inv.valor_descuento)}</span>
                             ) : (
                               <span className="text-stone">Sin dcto</span>
                             )}
                           </td>
                           <td className="num px-3 py-2 text-right" title={retDetalle || undefined}>
-                            {retTotal > 0 ? <span className="text-orange">−{formatCompact(retTotal)}</span> : <span className="text-stone">—</span>}
+                            {retTotal > 0 ? <span className="text-orange">−{formatFull(retTotal)}</span> : <span className="text-stone">—</span>}
                           </td>
-                          <td className="num px-3 py-2 text-right font-semibold text-ink">{formatCompact(inv.valor_neto)}</td>
+                          <td className="num px-3 py-2 text-right font-semibold text-ink">{formatFull(inv.valor_neto)}</td>
                           <td className="px-3 py-2">{urgencyBadge(inv.fecha_vencimiento, inv.es_nota_credito)}</td>
                         </tr>
                       );
@@ -336,7 +352,7 @@ export function ProviderInvoiceWorkspace({
                   <tr key={r.invoice_key} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 text-ink">{r.num_factura}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_emision_correo ? formatDateEs(r.fecha_emision_correo) : "—"}</td>
-                    <td className="num px-3 py-2 text-right text-ink">{formatCompact(r.valor_total_correo)}</td>
+                    <td className="num px-3 py-2 text-right text-ink">{formatFull(r.valor_total_correo)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -370,7 +386,7 @@ export function ProviderInvoiceWorkspace({
                   <tr key={r.invoice_key} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 text-ink">{r.num_factura}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_emision_erp ? formatDateEs(r.fecha_emision_erp) : "—"}</td>
-                    <td className="num px-3 py-2 text-right text-ink">{formatCompact(r.valor_pagado ?? r.valor_total_erp)}</td>
+                    <td className="num px-3 py-2 text-right text-ink">{formatFull(r.valor_pagado ?? r.valor_total_erp)}</td>
                     <td className="px-3 py-2">{origenBadge(r)}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_pago ? formatDateEs(r.fecha_pago) : "—"}</td>
                   </tr>
@@ -412,7 +428,7 @@ export function ProviderInvoiceWorkspace({
                 BRUTO
               </p>
               <p className="num text-ink" style={{ fontSize: 12 }}>
-                {formatCompact(totals.bruto)}
+                {formatFull(totals.bruto)}
               </p>
             </div>
             <div>
@@ -420,7 +436,7 @@ export function ProviderInvoiceWorkspace({
                 DESCUENTO
               </p>
               <p className="num text-success" style={{ fontSize: 12 }}>
-                −{formatCompact(totals.descuento)}
+                −{formatFull(totals.descuento)}
               </p>
             </div>
             <div>
@@ -428,7 +444,7 @@ export function ProviderInvoiceWorkspace({
                 RETENCIONES
               </p>
               <p className="num text-orange" style={{ fontSize: 12 }}>
-                −{formatCompact(totals.retencion)}
+                −{formatFull(totals.retencion)}
               </p>
             </div>
             <div>
@@ -436,7 +452,7 @@ export function ProviderInvoiceWorkspace({
                 NETO
               </p>
               <p className="num text-red-deep" style={{ fontSize: 14, fontWeight: 800 }}>
-                {formatCompact(totals.neto)}
+                {formatFull(totals.neto)}
               </p>
             </div>
             <button

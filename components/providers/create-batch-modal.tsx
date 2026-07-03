@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowRight, CheckCircle2, Clock, FileText, Wallet } from
 import { Modal } from "@/components/ui/modal";
 import { Toast, useToast } from "@/components/ui/toast";
 import { FormField, inputClassName } from "@/components/ui/form-field";
-import { formatCompact, formatFull } from "@/lib/format";
+import { formatFull } from "@/lib/format";
 import { createBatch } from "@/lib/batch-actions";
 import type { ProviderInvoiceCalc, OwnBankAccountRow, DataFreshness } from "@/lib/batch-data";
 import type { BankAccountRow } from "@/lib/bank-account-data";
@@ -133,8 +133,8 @@ export function CreateBatchModal({
           <Card3Col bruto={totals.bruto} neto={totals.neto} count={selectedInvoices.length} />
 
           <p className="text-stone" style={{ fontSize: 11 }}>
-            Descuento capturado: <span className="text-success font-semibold">{formatCompact(totals.descuento)}</span> · Retenciones:{" "}
-            <span className="text-orange font-semibold">{formatCompact(totals.retencion)}</span>
+            Descuento capturado: <span className="text-success font-semibold">{formatFull(totals.descuento)}</span> · Retenciones:{" "}
+            <span className="text-orange font-semibold">{formatFull(totals.retencion)}</span>
           </p>
 
           <FreshnessIndicator freshness={freshness} />
@@ -184,7 +184,7 @@ export function CreateBatchModal({
           <div>
             {categoria === "CON_DESCUENTO" ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-3 py-1 font-semibold text-success" style={{ fontSize: 11 }}>
-                <CheckCircle2 size={12} /> CON DESCUENTO — Ahorro capturado: {formatCompact(totals.descuento)}
+                <CheckCircle2 size={12} /> CON DESCUENTO — Ahorro capturado: {formatFull(totals.descuento)}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-orange/15 px-3 py-1 font-semibold text-orange" style={{ fontSize: 11 }}>
