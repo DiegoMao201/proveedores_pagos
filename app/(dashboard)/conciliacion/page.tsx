@@ -2,6 +2,8 @@ import Link from "next/link";
 import { AlertCircle, CheckCircle2, HelpCircle, Inbox } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
+import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-table";
+import { ExcluidasTab } from "@/components/conciliacion/excluidas-tab";
 import {
   getReconciled,
   getReconciledMercancia,
@@ -14,6 +16,7 @@ import {
   getReconciliationDiffs,
 } from "@/lib/conciliacion-data";
 import { getDiscountAlerts } from "@/lib/discount-data";
+import { getExcludedInvoices } from "@/lib/exclusion-data";
 import { formatCurrency, formatCompact, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 interface PageProps {
@@ -46,9 +49,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   let diffs: { categoria: string; n: number }[] = [];
   let alertsTotal = 0;
   let content: React.ReactNode = null;
+  let excludedInvoices: Awaited<ReturnType<typeof getExcludedInvoices>> = [];
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult] = await Promise.all([
       soloMercancia
         ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1)
         : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
@@ -61,6 +65,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       getDiscountAlerts(5),
       soloMercancia ? getReconciliationKpisMercancia() : getReconciliationKpis(),
       getReconciliationDiffs(),
+      getExcludedInvoices(),
     ]);
 
     counts = {
@@ -72,6 +77,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     kpis = kpisResult;
     diffs = diffsResult;
     alertsTotal = alerts.reduce((sum, a) => sum + a.ahorro_potencial, 0);
+    excludedInvoices = excludedResult;
 
     if (tab === "conciliadas") {
       content = (
@@ -123,34 +129,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         </div>
       );
     } else if (tab === "correo-sin-erp") {
-      content = (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-parchment text-left text-xs font-semibold uppercase tracking-wide text-stone">
-              <tr>
-                <th className="px-6 py-3">Proveedor (correo)</th>
-                <th className="px-4 py-3">Número</th>
-                <th className="px-4 py-3 text-right">Valor</th>
-                <th className="px-4 py-3">Emisión</th>
-                <th className="px-6 py-3">Recepción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {emailWithoutErp.rows.map((row) => (
-                <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                  <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.proveedor_correo ?? "")}</td>
-                  <td className="num px-4 py-3">{row.num_factura}</td>
-                  <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>
-                  <td className="date px-4 py-3">{row.fecha_emision_correo ? formatDateEs(row.fecha_emision_correo) : "—"}</td>
-                  <td className="date px-6 py-3">{row.fecha_recepcion_correo ? formatDateEs(row.fecha_recepcion_correo) : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {emailWithoutErp.rows.length === 0 && (
-            <EmptyState icon={<Inbox size={48} />} text="Todas las facturas de correo tienen contraparte en el ERP." />
-          )}
-        </div>
+      content = emailWithoutErp.rows.length === 0 ? (
+        <EmptyState icon={<Inbox size={48} />} text="Todas las facturas de correo tienen contraparte en el ERP." />
+      ) : (
+        <CorreoSinErpTable rows={emailWithoutErp.rows} />
       );
     } else if (tab === "erp-sin-correo") {
       content = (
@@ -239,6 +221,8 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
           )}
         </div>
       );
+    } else if (tab === "excluidas") {
+      content = <ExcluidasTab rows={excludedInvoices} />;
     }
   } catch (error) {
     dataError = error instanceof Error ? error.message : "Error desconocido";
@@ -344,6 +328,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 { key: "correo-sin-erp", label: "Correo sin ERP", count: counts.correoSinErp },
                 { key: "erp-sin-correo", label: "ERP sin correo", count: counts.erpSinCorreo },
                 { key: "conciliadas", label: "Conciliadas", count: counts.conciliadas },
+                { key: "excluidas", label: "Excluidas", count: excludedInvoices.length },
               ]}
             />
             {content}

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Wallet, Inbox, CheckCircle2 } from "lucide-react";
+import { Wallet, Inbox, CheckCircle2, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCompact, formatFull, formatDateEs } from "@/lib/format";
 import { recalculateInvoices } from "@/lib/batch-actions";
 import { CreateBatchModal } from "@/components/providers/create-batch-modal";
+import { ExclusionModal, type ExclusionCandidate } from "@/components/shared/exclusion-modal";
 import type {
   ProviderInvoiceCalc,
   OwnBankAccountRow,
@@ -149,6 +150,7 @@ export function ProviderInvoiceWorkspace({
   const [pending, startTransition] = useTransition();
   const [modalOpen, setModalOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("descuento");
+  const [exclusionCandidates, setExclusionCandidates] = useState<ExclusionCandidate[] | null>(null);
 
   useEffect(() => {
     startTransition(async () => {
@@ -417,6 +419,7 @@ export function ProviderInvoiceWorkspace({
                   <th className="px-3 py-2 text-left">Factura</th>
                   <th className="px-3 py-2 text-left">Emisión</th>
                   <th className="px-3 py-2 text-right">Valor correo</th>
+                  <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -425,6 +428,27 @@ export function ProviderInvoiceWorkspace({
                     <td className="px-3 py-2 text-ink">{r.num_factura}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_emision_correo ? formatDateEs(r.fecha_emision_correo) : "—"}</td>
                     <td className="num px-3 py-2 text-right text-ink">{formatFull(r.valor_total_correo)}</td>
+                    <td className="px-3 py-2">
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExclusionCandidates([
+                              {
+                                invoiceKey: r.invoice_key,
+                                numFactura: r.num_factura,
+                                proveedor: providerNombre,
+                                valor: r.valor_total_correo,
+                              },
+                            ])
+                          }
+                          className="flex items-center gap-1 text-stone hover:text-red-deep"
+                          style={{ fontSize: 10, fontWeight: 700 }}
+                        >
+                          <X size={10} /> Excluir
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -583,6 +607,16 @@ export function ProviderInvoiceWorkspace({
         totals={totals}
         onCreated={() => setSelected(new Set())}
       />
+
+      {exclusionCandidates && (
+        <ExclusionModal
+          open={true}
+          onClose={() => setExclusionCandidates(null)}
+          candidates={exclusionCandidates}
+          source="manual_ui_proveedor"
+          onExcluded={() => setExclusionCandidates(null)}
+        />
+      )}
     </div>
   );
 }
