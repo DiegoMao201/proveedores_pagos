@@ -10,10 +10,25 @@ import {
   getPendingAging,
   getPaymentCalendar,
   getPaymentRunway,
+  getUrgentInvoices,
+  getTopProvidersByVolume,
+  getPendingDiscounts,
+  getRetentionsToReview,
+  getSystemHealth,
   type DashboardKpis,
+  type UrgentInvoiceRow,
+  type TopProviderRow,
+  type PendingDiscountRow,
+  type RetentionToReviewRow,
+  type SystemHealthRow,
 } from "@/lib/dashboard-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
 import { getRebateDashboardSummary, type RebateSummary } from "@/lib/rebate-data";
+import { UrgentInvoicesCard } from "@/components/dashboard/urgent-invoices-card";
+import { TopProvidersCard } from "@/components/dashboard/top-providers-card";
+import { PendingDiscountsCard } from "@/components/dashboard/pending-discounts-card";
+import { RetentionsReviewCard } from "@/components/dashboard/retentions-review-card";
+import { SystemHealthCard } from "@/components/dashboard/system-health-card";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
 import { formatCompact, formatTodayEs } from "@/lib/format";
@@ -73,6 +88,24 @@ export default async function DashboardPage() {
     rebateSummary = await getRebateDashboardSummary();
   } catch {
     rebateSummary = [];
+  }
+
+  let urgentInvoices: UrgentInvoiceRow[] = [];
+  let topProviders: TopProviderRow[] = [];
+  let pendingDiscounts: PendingDiscountRow[] = [];
+  let retentionsToReview: RetentionToReviewRow[] = [];
+  let systemHealth: SystemHealthRow[] = [];
+
+  try {
+    [urgentInvoices, topProviders, pendingDiscounts, retentionsToReview, systemHealth] = await Promise.all([
+      canSeeOperativeActions ? getUrgentInvoices() : Promise.resolve([]),
+      getTopProvidersByVolume(),
+      isContabilidad ? getPendingDiscounts() : Promise.resolve([]),
+      isContabilidad ? getRetentionsToReview() : Promise.resolve([]),
+      isAdmin ? getSystemHealth() : Promise.resolve([]),
+    ]);
+  } catch {
+    // Estas cards son informativas -- si fallan, no rompen el resto de /inicio.
   }
 
   return (
@@ -169,57 +202,18 @@ export default async function DashboardPage() {
       )}
 
       <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-        {canSeeOperativeActions && (
-          <Card>
-            <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 6 }}>
-              Facturas urgentes
-            </h2>
-            <p className="text-stone" style={{ fontSize: 11 }}>
-              La tabla de facturas urgentes con acciones inline llega en el Bloque 2 (motor de alertas).
-            </p>
-          </Card>
-        )}
-        <Card>
-          <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 6 }}>
-            Top proveedores por volumen
-          </h2>
-          <p className="text-stone" style={{ fontSize: 11 }}>
-            Se conecta al construir el perfil de proveedor.
-          </p>
-        </Card>
+        {canSeeOperativeActions && <UrgentInvoicesCard invoices={urgentInvoices} />}
+        <TopProvidersCard providers={topProviders} />
       </div>
 
       {isContabilidad && (
         <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
-          <Card>
-            <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 4 }}>
-              Descuentos por resolver
-            </h2>
-            <p className="text-stone" style={{ fontSize: 11 }}>
-              Llega con la gestión de descuentos del Bloque 2.
-            </p>
-          </Card>
-          <Card>
-            <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 4 }}>
-              Retenciones a revisar
-            </h2>
-            <p className="text-stone" style={{ fontSize: 11 }}>
-              Llega con la gestión de retenciones del Bloque 2.
-            </p>
-          </Card>
+          <PendingDiscountsCard discounts={pendingDiscounts} />
+          <RetentionsReviewCard retentions={retentionsToReview} />
         </div>
       )}
 
-      {isAdmin && (
-        <Card>
-          <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12, marginBottom: 4 }}>
-            Salud del sistema
-          </h2>
-          <p className="text-stone" style={{ fontSize: 11 }}>
-            Estados de IMAP, Dropbox, worker y backups — se conecta en el Bloque 3.
-          </p>
-        </Card>
-      )}
+      {isAdmin && <SystemHealthCard health={systemHealth} />}
 
       <Card>
         <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>

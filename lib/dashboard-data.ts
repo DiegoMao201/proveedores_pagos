@@ -85,6 +85,96 @@ export async function getPaymentCalendar(): Promise<HeatmapDay[]> {
   return days;
 }
 
+export interface UrgentInvoiceRow {
+  invoice_key: string;
+  num_factura: string;
+  proveedor_id: number;
+  nombre_proveedor: string;
+  categoria_proveedor: string;
+  fecha_emision: string;
+  fecha_vencimiento: string | null;
+  dias_a_vencer: number;
+  valor_bruto: number;
+  valor_descuento: number;
+  valor_retencion_total: number;
+  valor_neto: number;
+  nivel_urgencia: "vencida" | "critica" | "urgente" | "proxima" | "normal";
+  descuento_en_riesgo: boolean;
+}
+
+export async function getUrgentInvoices(limit = 20): Promise<UrgentInvoiceRow[]> {
+  return fetchTreasury<UrgentInvoiceRow[]>(`/v_urgent_invoices?select=*&limit=${limit}`);
+}
+
+export interface TopProviderRow {
+  proveedor_id: number;
+  nombre_proveedor: string;
+  categoria_proveedor: string;
+  num_facturas: number;
+  num_ncs: number;
+  bruto_facturas: number | null;
+  bruto_ncs: number | null;
+  neto_total: number;
+  dias_a_vencer_mas_urgente: number | null;
+}
+
+export async function getTopProvidersByVolume(limit = 5): Promise<TopProviderRow[]> {
+  return fetchTreasury<TopProviderRow[]>(`/v_top_providers_by_volume?select=*&limit=${limit}`);
+}
+
+export interface PendingDiscountRow {
+  invoice_key: string;
+  num_factura: string;
+  nombre_proveedor: string;
+  categoria_proveedor: string;
+  proveedor_id: number;
+  fecha_emision: string;
+  fecha_vencimiento: string | null;
+  dias_a_vencer: number | null;
+  valor_bruto: number;
+  valor_descuento: number;
+  valor_neto: number;
+  descuento_pct: number;
+  estado_descuento: "ya_perdido" | "critico" | "urgente" | "vigente";
+}
+
+export async function getPendingDiscounts(limit = 10): Promise<PendingDiscountRow[]> {
+  return fetchTreasury<PendingDiscountRow[]>(`/v_pending_discounts?select=*&limit=${limit}`);
+}
+
+export interface RetentionToReviewRow {
+  invoice_key: string;
+  num_factura: string;
+  nombre_proveedor: string;
+  proveedor_id: number;
+  fecha_emision: string;
+  valor_bruto: number;
+  valor_retencion_fuente: number;
+  valor_retencion_ica: number;
+  valor_retencion_iva: number;
+  valor_retencion_otros: number;
+  retencion_total: number;
+  retencion_pct: number;
+  es_autoretenedor: boolean;
+  flag_revision: "autoretenedor_con_fuente" | "retencion_alta" | "triple_retencion" | "normal";
+}
+
+export async function getRetentionsToReview(): Promise<RetentionToReviewRow[]> {
+  return fetchTreasury<RetentionToReviewRow[]>("/v_retentions_to_review?select=*&flag_revision=neq.normal");
+}
+
+export interface SystemHealthRow {
+  componente: "imap" | "dropbox" | "worker";
+  nombre_display: string;
+  ultima_actividad: string | null;
+  minutos_desde_ultima: number | null;
+  estado: "verde" | "amarillo" | "rojo";
+}
+
+export async function getSystemHealth(): Promise<SystemHealthRow[]> {
+  return fetchTreasury<SystemHealthRow[]>("/v_system_health?select=*");
+}
+
 export async function getPaymentRunway(): Promise<{ d7: number; d15: number; d30: number }> {
   const rows = await fetchTreasury<{ fecha: string; total: number }[]>("/v_payment_calendar");
   const today = new Date();
