@@ -8,6 +8,7 @@ export interface ProviderInvoiceCalc {
   num_factura_erp_interno: string | null;
   num_factura_matched: string | null;
   tiene_correo_asociado: boolean;
+  match_por_valor: boolean;
   tipo_documento: "factura" | "nota_credito";
   es_seleccionable: boolean;
   motivo_no_seleccionable: string | null;

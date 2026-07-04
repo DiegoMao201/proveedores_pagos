@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus } from "lucide-react";
+import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus, Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 const NAV_SECTIONS = [
@@ -14,6 +14,7 @@ const NAV_SECTIONS = [
     label: "Trabajo",
     items: [
       { href: "/proveedores", label: "Proveedores", icon: Building2 },
+      { href: "/mesa-de-pagos", label: "Mesa de pagos", icon: Wallet },
       { href: "/notas-credito", label: "Notas crédito", icon: FileMinus },
       { href: "/rebate/pintuco", label: "Rebate", icon: TrendingUp },
       { href: "/lotes", label: "Lotes", icon: Layers },

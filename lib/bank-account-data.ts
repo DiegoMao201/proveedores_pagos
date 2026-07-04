@@ -41,6 +41,17 @@ export async function getBankAccounts(providerId: number): Promise<BankAccountRo
   return res.json();
 }
 
+export async function getPrincipalBankAccountsForProviders(providerIds: number[]): Promise<BankAccountRow[]> {
+  if (providerIds.length === 0) return [];
+  const res = await postgrestFetch(
+    `/bank_account?provider_id=in.(${providerIds.join(",")})&activa=eq.true&es_principal=eq.true&select=*`,
+    {},
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST /bank_account -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
 export interface ProviderListRow {
   id: number;
   codigo_proveedor: string | null;
