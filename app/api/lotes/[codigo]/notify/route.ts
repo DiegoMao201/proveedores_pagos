@@ -82,23 +82,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       const sendgridMsgId = response.headers["x-message-id"] as string | undefined;
 
       await postgrestFetch(
-        "/email_log",
+        "/rpc/log_payment_notification",
         {
           method: "POST",
           body: JSON.stringify({
-            tipo: "payment_notification",
-            batch_id: batch.id,
-            proveedor_id: provider.proveedor_id,
-            destinatario_to: destinatario,
-            destinatario_cc: modoPrueba ? null : "gerencia@ferreinox.co",
-            subject,
-            body_html: html,
-            sendgrid_msg_id: sendgridMsgId ?? null,
-            modo_prueba: modoPrueba,
-            sent_by: userId,
+            p_batch_id: batch.id,
+            p_proveedor_id: provider.proveedor_id,
+            p_destinatario_to: destinatario,
+            p_destinatario_cc: modoPrueba ? null : "gerencia@ferreinox.co",
+            p_subject: subject,
+            p_body_html: html,
+            p_sendgrid_msg_id: sendgridMsgId ?? null,
+            p_modo_prueba: modoPrueba,
+            p_user_id: userId,
           }),
         },
-        "notifications"
+        "treasury"
       );
 
       results.push({ proveedor: provider.proveedor_nombre, estado: "enviado" });
@@ -108,19 +107,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
   }
 
   if (!modoPrueba) {
-    const logRes = await postgrestFetch(`/email_log?batch_id=eq.${batch.id}&modo_prueba=eq.false&select=proveedor_id`, {}, "notifications");
-    if (logRes.ok) {
-      const sentRows = (await logRes.json()) as { proveedor_id: number }[];
-      const sentProviderIds = new Set(sentRows.map((r) => r.proveedor_id));
-      const allNotified = allBreakdown.every((b) => sentProviderIds.has(b.proveedor_id));
-      if (allNotified) {
-        await postgrestFetch(
-          `/payment_batch?id=eq.${batch.id}`,
-          { method: "PATCH", body: JSON.stringify({ notified_at: new Date().toISOString(), notified_by: userId }) },
-          "treasury"
-        );
-      }
-    }
+    await postgrestFetch(
+      "/rpc/check_and_mark_batch_notified",
+      { method: "POST", body: JSON.stringify({ p_batch_id: batch.id, p_user_id: userId }) },
+      "treasury"
+    );
   }
 
   return NextResponse.json({ results, modoPrueba });
