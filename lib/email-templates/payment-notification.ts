@@ -183,7 +183,7 @@ export function renderPaymentNotificationTemplate(p: PaymentNotificationParams):
                 <tr>
                   <td>
                     <div style="font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:700;color:#ffffff;">Ferreinox S.A.S. BIC</div>
-                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#aab8c8;margin-top:2px;">NIT 800.224.617-1 · Pereira, Risaralda, Colombia</div>
+                    <div style="font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#aab8c8;margin-top:2px;">NIT 800.224.617-8 · Pereira, Risaralda, Colombia</div>
                   </td>
                   <td align="right">
                     <div style="font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#aab8c8;">Referencia interna: ${p.codigoLote}</div>
