@@ -57,8 +57,10 @@ export async function getOwnBankAccounts(): Promise<OwnBankAccountRow[]> {
 export interface BatchSummaryRow {
   id: number;
   codigo_lote: string;
-  proveedor_id: number;
-  proveedor_nombre: string;
+  proveedor_id: number | null;
+  es_multiproveedor: boolean;
+  categoria_lote: "estrategico" | "locativo" | "mixto" | null;
+  proveedor_nombre: string | null;
   proveedor_nif: string | null;
   categoria: "CON_DESCUENTO" | "SIN_DESCUENTO";
   estado: "draft" | "exported" | "paid" | "cancelled";

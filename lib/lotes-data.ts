@@ -30,3 +30,94 @@ export async function getBatchesSummaryList(): Promise<BatchListRow[]> {
   if (!res.ok) throw new Error(`PostgREST /v_batches_summary_list -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }
+
+export interface BatchProviderBreakdownRow {
+  batch_id: number;
+  proveedor_id: number;
+  proveedor_nombre: string;
+  categoria_proveedor: string;
+  num_documentos: number;
+  num_facturas: number;
+  num_ncs: number;
+  total_bruto_facturas: number;
+  total_ncs: number;
+  total_descuento: number;
+  total_retenciones: number;
+  total_neto: number;
+  bank_account_id: number | null;
+  cuenta_destino: string | null;
+  banco_destino_codigo: number | null;
+  tipo_transaccion: number | null;
+  tipo_documento_beneficiario: number | null;
+  proveedor_nit: string | null;
+  email_pago: string | null;
+  referencia_beneficiario: string | null;
+  celular_beneficiario: string | null;
+  inscrita_bancolombia: boolean;
+}
+
+export async function getBatchProviderBreakdown(batchId: number): Promise<BatchProviderBreakdownRow[]> {
+  const res = await postgrestFetch(`/v_batch_provider_breakdown?batch_id=eq.${batchId}&select=*&order=total_neto.desc`, {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_batch_provider_breakdown -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export interface BatchAuditLogRow {
+  id: number;
+  batch_id: number;
+  event: string;
+  event_at: string;
+  user_id: string | null;
+  user_nombre: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface BatchItemDetailRow {
+  id: number;
+  batch_id: number;
+  proveedor_id: number;
+  invoice_key: string;
+  num_factura: string;
+  fecha_emision: string | null;
+  fecha_vencimiento: string | null;
+  valor_bruto: number;
+  valor_descuento: number;
+  valor_retencion_fuente: number;
+  valor_retencion_ica: number;
+  valor_retencion_iva: number;
+  valor_retencion_otros: number;
+  valor_neto: number;
+  tipo_documento: "factura" | "nota_credito";
+}
+
+export async function getBatchItemsDetail(batchId: number): Promise<BatchItemDetailRow[]> {
+  const res = await postgrestFetch(`/v_batch_item_detail?batch_id=eq.${batchId}&select=*&order=fecha_emision.asc`, {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_batch_item_detail -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export interface BatchDiscrepancyRow {
+  id: number;
+  codigo_lote: string;
+  proveedor_id: number;
+  proveedor_nombre: string;
+  paid_at: string;
+  valor_neto: number;
+  dias_desde_pago: number;
+  num_facturas: number;
+  confirmadas_por_erp: number;
+  pendientes_confirmacion: number;
+  nivel_alerta: "NORMAL" | "ATENCION" | "CRITICA";
+}
+
+export async function getBatchDiscrepancy(batchId: number): Promise<BatchDiscrepancyRow[]> {
+  const res = await postgrestFetch(`/v_batch_erp_discrepancy?id=eq.${batchId}&select=*`, {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_batch_erp_discrepancy -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export async function getBatchAuditLog(batchId: number): Promise<BatchAuditLogRow[]> {
+  const res = await postgrestFetch(`/v_batch_payment_log?batch_id=eq.${batchId}&select=*&order=event_at.asc`, {}, "audit");
+  if (!res.ok) throw new Error(`PostgREST /v_batch_payment_log -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
