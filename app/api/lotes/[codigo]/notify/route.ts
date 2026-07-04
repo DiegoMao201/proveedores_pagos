@@ -45,17 +45,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
 
   for (const provider of breakdown) {
     const items = allItems.filter((it) => it.proveedor_id === provider.proveedor_id);
-    const facturas = items.filter((it) => it.tipo_documento === "factura");
-    const ncs = items.filter((it) => it.tipo_documento === "nota_credito");
 
     const html = renderPaymentNotificationTemplate({
       proveedorNombre: humanizeProviderName(provider.proveedor_nombre),
+      proveedorNit: provider.proveedor_nit,
       montoNeto: provider.total_neto,
       valorBruto: provider.total_bruto_facturas,
       descuento: provider.total_descuento,
       retenciones: provider.total_retenciones,
-      facturas: facturas.map((f) => ({ numFactura: f.num_factura, valorNetoFormateado: formatFull(f.valor_neto) })),
-      ncs: ncs.map((nc) => ({ numero: nc.num_factura, valorFormateado: formatFull(Math.abs(nc.valor_neto)) })),
+      items: items.map((it) => ({
+        numFactura: it.num_factura,
+        tipoDocumento: it.tipo_documento,
+        fechaEmision: it.fecha_emision,
+        valorBruto: it.valor_bruto,
+        valorDescuento: it.valor_descuento,
+        valorNeto: it.valor_neto,
+      })),
       fechaAplicacion: formatDateEs(batch.fecha_pago_programada),
       bancoDestino: "Bancolombia",
       ultimos4Digitos: provider.cuenta_destino?.slice(-4) ?? "----",
