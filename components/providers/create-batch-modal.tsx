@@ -101,6 +101,11 @@ export function CreateBatchModal({
   const destAccount = destAccounts.find((a) => a.id === destAccountId);
   const canSubmit = ownAccountId > 0 && destAccountId > 0 && destAccount?.inscrita_bancolombia;
 
+  const facturasSeleccionadas = selectedInvoices.filter((i) => i.tipo_documento === "factura");
+  const ncsSeleccionadas = selectedInvoices.filter((i) => i.tipo_documento === "nota_credito");
+  const brutoPositivo = facturasSeleccionadas.reduce((s, i) => s + i.valor_bruto, 0);
+  const totalNCs = ncsSeleccionadas.reduce((s, i) => s + i.valor_bruto, 0);
+
   function handleSubmit() {
     startTransition(async () => {
       const result = await createBatch({
@@ -127,10 +132,45 @@ export function CreateBatchModal({
       <Modal open={open} onClose={onClose} title="Armar lote de pago" width={560}>
         <div className="flex flex-col gap-3">
           <p className="text-stone" style={{ fontSize: 11 }}>
-            Para: <strong className="text-ink">{providerNombre}</strong> · {selectedInvoices.length} facturas
+            Para: <strong className="text-ink">{providerNombre}</strong> · {facturasSeleccionadas.length} facturas
+            {ncsSeleccionadas.length > 0 ? ` · ${ncsSeleccionadas.length} NCs aplicadas` : ""}
           </p>
 
           <Card3Col bruto={totals.bruto} neto={totals.neto} count={selectedInvoices.length} />
+
+          {ncsSeleccionadas.length > 0 && (
+            <div className="rounded-md bg-cream-soft p-3" style={{ border: "1px solid var(--color-yellow)" }}>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="text-stone" style={{ fontSize: 9 }}>
+                    DOCUMENTOS
+                  </p>
+                  <p className="text-ink" style={{ fontSize: 11, fontWeight: 700 }}>
+                    {facturasSeleccionadas.length} facturas · {ncsSeleccionadas.length} NCs
+                  </p>
+                </div>
+                <div>
+                  <p className="text-stone" style={{ fontSize: 9 }}>
+                    BRUTO POSITIVO
+                  </p>
+                  <p className="num text-ink" style={{ fontSize: 11, fontWeight: 700 }}>
+                    {formatFull(brutoPositivo)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-red-deep" style={{ fontSize: 9 }}>
+                    NCS APLICADAS
+                  </p>
+                  <p className="num text-red-deep" style={{ fontSize: 11, fontWeight: 700 }}>
+                    −{formatFull(Math.abs(totalNCs))}
+                  </p>
+                </div>
+              </div>
+              <p className="text-stone mt-1.5" style={{ fontSize: 9.5 }}>
+                El descuento por pronto pago se aplicó sobre el bruto neto (después de compensar NCs).
+              </p>
+            </div>
+          )}
 
           <p className="text-stone" style={{ fontSize: 11 }}>
             Descuento capturado: <span className="text-success font-semibold">{formatFull(totals.descuento)}</span> · Retenciones:{" "}

@@ -15,7 +15,7 @@ import type {
 } from "@/lib/batch-data";
 import type { BankAccountRow } from "@/lib/bank-account-data";
 
-type SortKey = "descuento" | "valor" | "vencimiento" | "emision";
+type SortKey = "descuento" | "valor" | "vencimiento" | "emision" | "nc_primero";
 
 function origenBadge(row: ProviderPaidRow) {
   if (row.origen_saldado === "app_batch_confirmado_erp") {
@@ -91,13 +91,14 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "valor", label: "Valor descendente" },
   { key: "vencimiento", label: "Vencimiento próximo" },
   { key: "emision", label: "Emisión reciente" },
+  { key: "nc_primero", label: "NCs primero" },
 ];
 
 function sortInvoices(list: ProviderInvoiceCalc[], sortKey: SortKey): ProviderInvoiceCalc[] {
   const copy = [...list];
   switch (sortKey) {
     case "valor":
-      return copy.sort((a, b) => b.valor_neto - a.valor_neto);
+      return copy.sort((a, b) => Math.abs(b.valor_bruto) - Math.abs(a.valor_bruto));
     case "vencimiento":
       return copy.sort((a, b) => {
         if (!a.fecha_vencimiento) return 1;
@@ -106,6 +107,11 @@ function sortInvoices(list: ProviderInvoiceCalc[], sortKey: SortKey): ProviderIn
       });
     case "emision":
       return copy.sort((a, b) => new Date(b.fecha_emision).getTime() - new Date(a.fecha_emision).getTime());
+    case "nc_primero":
+      return copy.sort((a, b) => {
+        if (a.tipo_documento === b.tipo_documento) return 0;
+        return a.tipo_documento === "nota_credito" ? -1 : 1;
+      });
     case "descuento":
     default:
       return copy.sort((a, b) => b.valor_descuento - a.valor_descuento);
@@ -182,7 +188,15 @@ export function ProviderInvoiceWorkspace({
     return { bruto, descuento, retencion, neto };
   }, [selectedInvoices]);
 
+  const facturas = invoices.filter((i) => i.tipo_documento === "factura");
+  const notasCredito = invoices.filter((i) => i.tipo_documento === "nota_credito");
   const totalPendiente = invoices.reduce((s, i) => s + i.valor_bruto, 0);
+  const totalNC = notasCredito.reduce((s, i) => s + i.valor_bruto, 0);
+
+  const soloNCSeleccionadas = selectedInvoices.length > 0 && selectedInvoices.every((i) => i.tipo_documento === "nota_credito");
+  const netoNegativo = totals.neto < 0;
+  const netoCero = selectedInvoices.length > 0 && totals.neto === 0;
+  const puedeArmar = canEdit && selectedInvoices.length > 0 && !soloNCSeleccionadas && !netoNegativo;
 
   return (
     <div className="flex flex-col gap-3" style={{ paddingBottom: selected.size > 0 ? 72 : 0 }}>
@@ -211,9 +225,17 @@ export function ProviderInvoiceWorkspace({
       {tab === "pagar" && (
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-stone" style={{ fontSize: 11 }}>
-              {invoices.length} facturas · {formatCompact(totalPendiente)} total pendiente
-            </p>
+            <div>
+              <p className="text-stone" style={{ fontSize: 11 }}>
+                {facturas.length} facturas{notasCredito.length > 0 ? ` + ${notasCredito.length} NCs pendientes` : ""} ·{" "}
+                {formatCompact(totalPendiente)} bruto neto
+              </p>
+              {notasCredito.length > 0 && (
+                <p className="text-stone" style={{ fontSize: 10 }}>
+                  Total NCs disponibles: {formatCompact(totalNC)} en {notasCredito.length} documentos
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {canEdit && invoices.some((i) => i.valor_descuento > 0) && (
                 <button
@@ -264,6 +286,7 @@ export function ProviderInvoiceWorkspace({
                   <tbody>
                     {sortedInvoices.map((inv) => {
                       const isSelected = selected.has(inv.invoice_key);
+                      const esNC = inv.tipo_documento === "nota_credito";
                       const retTotal = inv.valor_retencion_fuente + inv.valor_retencion_ica + inv.valor_retencion_iva + inv.valor_retencion_otros;
                       const retDetalle = [
                         inv.valor_retencion_fuente > 0 ? `Fuente: −${formatFull(inv.valor_retencion_fuente)}` : null,
@@ -273,6 +296,11 @@ export function ProviderInvoiceWorkspace({
                       ]
                         .filter(Boolean)
                         .join(" · ");
+                      const ncSubtitle = inv.num_factura_matched
+                        ? `Match ✓ con interno ${inv.num_factura_erp_interno} · Emitida ${formatDateEs(inv.fecha_emision)}`
+                        : inv.num_factura_erp_interno
+                        ? `Interno del ERP · Sin XML oficial aún`
+                        : `XML del proveedor · Sin registro en ERP`;
                       return (
                         <tr
                           key={inv.invoice_key}
@@ -284,9 +312,10 @@ export function ProviderInvoiceWorkspace({
                             <input type="checkbox" checked={isSelected} disabled={!canEdit} readOnly style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }} />
                           </td>
                           <td className="px-3 py-2">
-                            <p className="font-semibold text-ink" style={{ fontSize: 12 }}>
+                            <p className="font-semibold" style={{ fontSize: 12, color: esNC ? "var(--color-red-deep)" : "var(--color-ink)" }}>
+                              {esNC ? "NC " : ""}
                               {inv.num_factura}
-                              {!inv.tiene_correo_asociado && (
+                              {!esNC && !inv.tiene_correo_asociado && (
                                 <span
                                   className="ml-1.5 inline-flex items-center rounded"
                                   style={{ fontSize: 9, fontWeight: 700, background: "var(--color-cream)", color: "var(--color-graphite)", padding: "1px 5px" }}
@@ -295,7 +324,11 @@ export function ProviderInvoiceWorkspace({
                                 </span>
                               )}
                             </p>
-                            {inv.num_factura_erp_interno && inv.num_factura_erp_interno !== inv.num_factura ? (
+                            {esNC ? (
+                              <p className="text-stone" style={{ fontSize: 9.5 }}>
+                                {ncSubtitle}
+                              </p>
+                            ) : inv.num_factura_erp_interno && inv.num_factura_erp_interno !== inv.num_factura ? (
                               <p className="text-stone" style={{ fontSize: 9.5 }}>
                                 Interno: {inv.num_factura_erp_interno} · Emitida {formatDateEs(inv.fecha_emision)}
                               </p>
@@ -305,19 +338,39 @@ export function ProviderInvoiceWorkspace({
                               </p>
                             )}
                           </td>
-                          <td className="num px-3 py-2 text-right text-ink">{formatFull(inv.valor_bruto)}</td>
-                          <td className="num px-3 py-2 text-right">
-                            {inv.valor_descuento > 0 ? (
-                              <span className="text-success">−{formatFull(inv.valor_descuento)}</span>
+                          <td className="num px-3 py-2 text-right" style={{ fontWeight: 700, color: esNC ? "var(--color-red-deep)" : "var(--color-ink)" }}>
+                            {esNC ? `−${formatFull(Math.abs(inv.valor_bruto))}` : formatFull(inv.valor_bruto)}
+                          </td>
+                          {esNC ? (
+                            <>
+                              <td className="num px-3 py-2 text-right text-stone">—</td>
+                              <td className="num px-3 py-2 text-right text-stone">—</td>
+                              <td className="num px-3 py-2 text-right text-stone">—</td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="num px-3 py-2 text-right">
+                                {inv.valor_descuento > 0 ? (
+                                  <span className="text-success">−{formatFull(inv.valor_descuento)}</span>
+                                ) : (
+                                  <span className="text-stone">Sin dcto</span>
+                                )}
+                              </td>
+                              <td className="num px-3 py-2 text-right" title={retDetalle || undefined}>
+                                {retTotal > 0 ? <span className="text-orange">−{formatFull(retTotal)}</span> : <span className="text-stone">—</span>}
+                              </td>
+                              <td className="num px-3 py-2 text-right font-semibold text-ink">{formatFull(inv.valor_neto)}</td>
+                            </>
+                          )}
+                          <td className="px-3 py-2">
+                            {esNC ? (
+                              <span className="inline-flex items-center rounded-full bg-red-deep px-2 py-0.5 font-semibold text-white" style={{ fontSize: 9 }}>
+                                NC
+                              </span>
                             ) : (
-                              <span className="text-stone">Sin dcto</span>
+                              urgencyBadge(inv.fecha_vencimiento, inv.es_nota_credito)
                             )}
                           </td>
-                          <td className="num px-3 py-2 text-right" title={retDetalle || undefined}>
-                            {retTotal > 0 ? <span className="text-orange">−{formatFull(retTotal)}</span> : <span className="text-stone">—</span>}
-                          </td>
-                          <td className="num px-3 py-2 text-right font-semibold text-ink">{formatFull(inv.valor_neto)}</td>
-                          <td className="px-3 py-2">{urgencyBadge(inv.fecha_vencimiento, inv.es_nota_credito)}</td>
                         </tr>
                       );
                     })}
@@ -409,7 +462,29 @@ export function ProviderInvoiceWorkspace({
               </p>
               <p className="text-ink" style={{ fontSize: 12, fontWeight: 700 }}>
                 {selected.size} documentos seleccionados
+                {selectedInvoices.some((i) => i.tipo_documento === "nota_credito") && (
+                  <span className="text-stone" style={{ fontWeight: 400 }}>
+                    {" "}
+                    ({selectedInvoices.filter((i) => i.tipo_documento === "factura").length} facturas +{" "}
+                    {selectedInvoices.filter((i) => i.tipo_documento === "nota_credito").length} NCs)
+                  </span>
+                )}
               </p>
+              {soloNCSeleccionadas && (
+                <p className="text-red-deep" style={{ fontSize: 9.5 }}>
+                  Un lote debe incluir al menos una factura positiva.
+                </p>
+              )}
+              {netoNegativo && (
+                <p className="text-red-deep" style={{ fontSize: 9.5 }}>
+                  El lote resulta en pago negativo. Quitá NCs o agregá facturas.
+                </p>
+              )}
+              {netoCero && (
+                <p className="text-orange" style={{ fontSize: 9.5 }}>
+                  El lote no genera pago (facturas y NCs se compensan).
+                </p>
+              )}
             </div>
             <label className="flex flex-col gap-0.5">
               <span className="text-stone" style={{ fontSize: 9, fontWeight: 700 }}>
@@ -458,7 +533,14 @@ export function ProviderInvoiceWorkspace({
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              disabled={!canEdit}
+              disabled={!puedeArmar}
+              title={
+                soloNCSeleccionadas
+                  ? "Un lote debe incluir al menos una factura positiva. Las NCs se aplican como compensación."
+                  : netoNegativo
+                  ? "El lote resulta en pago negativo. Quitá NCs o agregá facturas."
+                  : undefined
+              }
               className="ml-auto rounded-md bg-red-deep px-5 py-2 text-white disabled:opacity-40"
               style={{ fontSize: 12, fontWeight: 800 }}
             >
