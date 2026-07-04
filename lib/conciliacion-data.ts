@@ -49,6 +49,27 @@ export interface ErpWithoutEmailRow {
   estado_erp: "pendiente" | "saldada";
 }
 
+export interface HistoricalCutoffs {
+  cutoffFacturas: string;
+  cutoffNcs: string;
+  offsetMesesNcs: number;
+}
+
+export async function getHistoricalCutoffs(): Promise<HistoricalCutoffs> {
+  const res = await postgrestFetch("/system_config?select=clave,valor", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /system_config -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as { clave: string; valor: string }[];
+  const byClave = Object.fromEntries(rows.map((r) => [r.clave, r.valor]));
+  const offsetMesesNcs = Number(byClave.historical_cutoff_ncs_offset_months ?? 2);
+  const cutoffNcsDate = new Date();
+  cutoffNcsDate.setMonth(cutoffNcsDate.getMonth() - offsetMesesNcs);
+  return {
+    cutoffFacturas: byClave.historical_cutoff_facturas ?? "",
+    cutoffNcs: cutoffNcsDate.toISOString().slice(0, 10),
+    offsetMesesNcs,
+  };
+}
+
 interface PagedResult<T> {
   rows: T[];
   total: number;

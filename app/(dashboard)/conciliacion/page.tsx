@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, HelpCircle, Inbox } from "lucide-react";
+import { AlertCircle, CheckCircle2, HelpCircle, Inbox, Info } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
 import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-table";
@@ -14,6 +14,7 @@ import {
   getReconciliationKpis,
   getReconciliationKpisMercancia,
   getReconciliationDiffs,
+  getHistoricalCutoffs,
 } from "@/lib/conciliacion-data";
 import { getDiscountAlerts } from "@/lib/discount-data";
 import { getExcludedInvoices } from "@/lib/exclusion-data";
@@ -50,9 +51,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   let alertsTotal = 0;
   let content: React.ReactNode = null;
   let excludedInvoices: Awaited<ReturnType<typeof getExcludedInvoices>> = [];
+  let cutoffs: Awaited<ReturnType<typeof getHistoricalCutoffs>> | null = null;
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult] = await Promise.all([
       soloMercancia
         ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1)
         : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
@@ -66,6 +68,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       soloMercancia ? getReconciliationKpisMercancia() : getReconciliationKpis(),
       getReconciliationDiffs(),
       getExcludedInvoices(),
+      getHistoricalCutoffs(),
     ]);
 
     counts = {
@@ -78,6 +81,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
     diffs = diffsResult;
     alertsTotal = alerts.reduce((sum, a) => sum + a.ahorro_potencial, 0);
     excludedInvoices = excludedResult;
+    cutoffs = cutoffsResult;
 
     if (tab === "conciliadas") {
       content = (
@@ -254,6 +258,20 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         </Card>
       ) : (
         <>
+          {cutoffs && (
+            <div
+              className="flex items-center gap-2 rounded-md"
+              style={{ background: "var(--color-line-soft)", borderLeft: "3px solid var(--color-graphite)", padding: "8px 14px" }}
+            >
+              <Info size={12} className="text-stone shrink-0" />
+              <p className="text-stone" style={{ fontSize: 10 }}>
+                Corte histórico activo: facturas desde {formatDateEs(cutoffs.cutoffFacturas)} · NCs de últimos{" "}
+                {cutoffs.offsetMesesNcs} meses (desde {formatDateEs(cutoffs.cutoffNcs)}). Documentos anteriores considerados resueltos
+                operativamente.
+              </p>
+            </div>
+          )}
+
           <div className="flex items-center justify-end gap-2">
             <span className="text-stone" style={{ fontSize: 10 }}>
               {soloMercancia ? "Mostrando solo mercancía (recomendado)" : "Mostrando todos los proveedores"}
