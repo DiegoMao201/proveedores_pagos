@@ -78,6 +78,10 @@ export async function getReconciled(page: number, pageSize: number) {
   return fetchPaged<ReconciledRow>("/v_reconciled", "*", "diferencia_valor.desc", page, pageSize);
 }
 
+export async function getReconciledMercancia(page: number, pageSize: number) {
+  return fetchPaged<ReconciledRow>("/v_reconciliation_mercancia", "*", "diferencia_valor.desc", page, pageSize);
+}
+
 export async function getEmailWithoutErp(page: number, pageSize: number) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp",
@@ -92,6 +96,20 @@ export async function getErpWithoutEmail(page: number, pageSize: number) {
   return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email", "*", "fecha_vencimiento_erp.asc", page, pageSize);
 }
 
+export async function getErpWithoutEmailMercancia(page: number, pageSize: number) {
+  return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email_mercancia", "*", "fecha_vencimiento_erp.asc", page, pageSize);
+}
+
+export async function getEmailWithoutErpMercancia(page: number, pageSize: number) {
+  return fetchPaged<EmailWithoutErpRow>(
+    "/v_email_without_erp_mercancia",
+    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo",
+    "fecha_recepcion_correo.desc",
+    page,
+    pageSize
+  );
+}
+
 export async function getReconciliationKpis(): Promise<ReconciliationKpis> {
   const res = await postgrestFetch("/v_reconciliation_kpis", {}, "treasury");
   if (!res.ok) throw new Error(`PostgREST /v_reconciliation_kpis -> HTTP ${res.status}: ${await res.text()}`);
@@ -103,6 +121,27 @@ export async function getReconciliationKpis(): Promise<ReconciliationKpis> {
       correo_sin_erp: 0,
       erp_pendiente_sin_correo: 0,
       erp_saldada_sin_correo: 0,
+    }
+  );
+}
+
+export interface ReconciliationKpisMercancia {
+  conciliadas: number;
+  conciliadas_sin_diferencia: number;
+  correo_sin_erp: number;
+  erp_pendiente_sin_correo: number;
+}
+
+export async function getReconciliationKpisMercancia(): Promise<ReconciliationKpisMercancia> {
+  const res = await postgrestFetch("/v_reconciliation_kpis_mercancia", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_reconciliation_kpis_mercancia -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as ReconciliationKpisMercancia[];
+  return (
+    rows[0] ?? {
+      conciliadas: 0,
+      conciliadas_sin_diferencia: 0,
+      correo_sin_erp: 0,
+      erp_pendiente_sin_correo: 0,
     }
   );
 }

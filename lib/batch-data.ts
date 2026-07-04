@@ -9,6 +9,8 @@ export interface ProviderInvoiceCalc {
   num_factura_matched: string | null;
   tiene_correo_asociado: boolean;
   tipo_documento: "factura" | "nota_credito";
+  es_seleccionable: boolean;
+  motivo_no_seleccionable: string | null;
   fecha_emision: string;
   fecha_vencimiento: string | null;
   es_nota_credito: boolean;

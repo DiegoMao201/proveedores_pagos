@@ -298,23 +298,42 @@ export function ProviderInvoiceWorkspace({
                         .join(" · ");
                       const ncSubtitle = inv.num_factura_matched
                         ? `Match ✓ con interno ${inv.num_factura_erp_interno} · Emitida ${formatDateEs(inv.fecha_emision)}`
-                        : inv.num_factura_erp_interno
-                        ? `Interno del ERP · Sin XML oficial aún`
+                        : inv.motivo_no_seleccionable
+                        ? `Interno del ERP · ${inv.motivo_no_seleccionable}`
                         : `XML del proveedor · Sin registro en ERP`;
+                      const puedeSeleccionar = canEdit && inv.es_seleccionable;
                       return (
                         <tr
                           key={inv.invoice_key}
-                          className="cursor-pointer border-b border-line last:border-0"
-                          style={{ background: isSelected ? "var(--color-cream-soft)" : "transparent" }}
-                          onClick={() => canEdit && toggle(inv.invoice_key)}
+                          className={puedeSeleccionar ? "cursor-pointer border-b border-line last:border-0" : "border-b border-line last:border-0"}
+                          style={{ background: isSelected ? "var(--color-cream-soft)" : !inv.es_seleccionable ? "var(--color-line-soft)" : "transparent" }}
+                          onClick={() => puedeSeleccionar && toggle(inv.invoice_key)}
+                          title={!inv.es_seleccionable ? inv.motivo_no_seleccionable ?? undefined : undefined}
                         >
                           <td className="px-3 py-2">
-                            <input type="checkbox" checked={isSelected} disabled={!canEdit} readOnly style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }} />
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              disabled={!puedeSeleccionar}
+                              readOnly
+                              style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }}
+                            />
                           </td>
                           <td className="px-3 py-2">
-                            <p className="font-semibold" style={{ fontSize: 12, color: esNC ? "var(--color-red-deep)" : "var(--color-ink)" }}>
+                            <p
+                              className="font-semibold"
+                              style={{ fontSize: 12, color: !inv.es_seleccionable ? "var(--color-graphite)" : esNC ? "var(--color-red-deep)" : "var(--color-ink)" }}
+                            >
                               {esNC ? "NC " : ""}
                               {inv.num_factura}
+                              {esNC && !inv.es_seleccionable && (
+                                <span
+                                  className="ml-1.5 inline-flex items-center rounded"
+                                  style={{ fontSize: 9, fontWeight: 700, background: "var(--color-cream)", color: "var(--color-orange)", padding: "1px 5px" }}
+                                >
+                                  Interna sin XML
+                                </span>
+                              )}
                               {!esNC && !inv.tiene_correo_asociado && (
                                 <span
                                   className="ml-1.5 inline-flex items-center rounded"

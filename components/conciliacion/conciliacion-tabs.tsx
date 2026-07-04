@@ -7,13 +7,13 @@ interface TabDef {
   count: number;
 }
 
-export function ConciliacionTabs({ active, tabs }: { active: string; tabs: TabDef[] }) {
+export function ConciliacionTabs({ active, tabs, todos }: { active: string; tabs: TabDef[]; todos?: boolean }) {
   return (
     <div className="flex flex-wrap gap-1 border-b border-line">
       {tabs.map((tab) => (
         <Link
           key={tab.key}
-          href={`/conciliacion?tab=${tab.key}`}
+          href={todos ? `/conciliacion?tab=${tab.key}&todos=1` : `/conciliacion?tab=${tab.key}`}
           className={cn(
             "border-b-2 px-4 py-2 text-sm font-semibold transition-colors",
             active === tab.key ? "border-red text-red-deep" : "border-transparent text-stone hover:text-graphite"

@@ -4,9 +4,13 @@ import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
 import {
   getReconciled,
+  getReconciledMercancia,
   getEmailWithoutErp,
   getErpWithoutEmail,
+  getEmailWithoutErpMercancia,
+  getErpWithoutEmailMercancia,
   getReconciliationKpis,
+  getReconciliationKpisMercancia,
   getReconciliationDiffs,
 } from "@/lib/conciliacion-data";
 import { getDiscountAlerts } from "@/lib/discount-data";
@@ -28,21 +32,34 @@ const DIFF_LABELS: Record<string, { label: string; tone: string }> = {
 export default async function ConciliacionPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const tab = sp.tab ?? "alertas";
+  const soloMercancia = sp.todos !== "1";
 
   let dataError: string | null = null;
   let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0 };
-  let kpis = { conciliadas: 0, conciliadas_sin_diferencia: 0, correo_sin_erp: 0, erp_pendiente_sin_correo: 0, erp_saldada_sin_correo: 0 };
+  let kpis: {
+    conciliadas: number;
+    conciliadas_sin_diferencia: number;
+    correo_sin_erp: number;
+    erp_pendiente_sin_correo: number;
+    erp_saldada_sin_correo?: number;
+  } = { conciliadas: 0, conciliadas_sin_diferencia: 0, correo_sin_erp: 0, erp_pendiente_sin_correo: 0 };
   let diffs: { categoria: string; n: number }[] = [];
   let alertsTotal = 0;
   let content: React.ReactNode = null;
 
   try {
     const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult] = await Promise.all([
-      getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
-      getEmailWithoutErp(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1),
-      getErpWithoutEmail(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1),
+      soloMercancia
+        ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1)
+        : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
+      soloMercancia
+        ? getEmailWithoutErpMercancia(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1)
+        : getEmailWithoutErp(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1),
+      soloMercancia
+        ? getErpWithoutEmailMercancia(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1)
+        : getErpWithoutEmail(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1),
       getDiscountAlerts(5),
-      getReconciliationKpis(),
+      soloMercancia ? getReconciliationKpisMercancia() : getReconciliationKpis(),
       getReconciliationDiffs(),
     ]);
 
@@ -253,8 +270,26 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         </Card>
       ) : (
         <>
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-stone" style={{ fontSize: 10 }}>
+              {soloMercancia ? "Mostrando solo mercancía (recomendado)" : "Mostrando todos los proveedores"}
+            </span>
+            <Link
+              href={soloMercancia ? `/conciliacion?tab=${tab}&todos=1` : `/conciliacion?tab=${tab}`}
+              className="rounded-full border border-line px-2.5 py-1 font-semibold text-graphite"
+              style={{ fontSize: 10 }}
+            >
+              {soloMercancia ? "Ver todos" : "Ver solo mercancía"}
+            </Link>
+          </div>
+          {!soloMercancia && (
+            <p className="text-orange" style={{ fontSize: 10 }}>
+              ⚠ Mostrando todos los proveedores. Los conteos incluyen locativos que no van al ERP.
+            </p>
+          )}
+
           <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-            <Link href="/conciliacion?tab=alertas">
+            <Link href={soloMercancia ? "/conciliacion?tab=alertas" : "/conciliacion?tab=alertas&todos=1"}>
               <Card style={{ borderColor: "var(--color-red)", boxShadow: "var(--shadow-glow-red)" }}>
                 <p className="text-red-deep" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Accionable hoy
@@ -264,7 +299,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <p className="text-stone" style={{ fontSize: 10 }}>{formatCompact(alertsTotal)} en riesgo · vencen ≤5d</p>
               </Card>
             </Link>
-            <Link href="/conciliacion?tab=correo-sin-erp">
+            <Link href={soloMercancia ? "/conciliacion?tab=correo-sin-erp" : "/conciliacion?tab=correo-sin-erp&todos=1"}>
               <Card style={{ borderColor: "var(--color-orange)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-orange)" }}>
                   Sin cargar al ERP
@@ -274,7 +309,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <p className="text-stone" style={{ fontSize: 10 }}>XML recibido, falta contable</p>
               </Card>
             </Link>
-            <Link href="/conciliacion?tab=erp-sin-correo">
+            <Link href={soloMercancia ? "/conciliacion?tab=erp-sin-correo" : "/conciliacion?tab=erp-sin-correo&todos=1"}>
               <Card style={{ borderColor: "var(--color-yellow)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-graphite)" }}>
                   XML pendiente
@@ -282,11 +317,13 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <p className="num text-ink" style={{ fontWeight: 800, fontSize: 20, marginTop: 4 }}>{counts.erpSinCorreo.toLocaleString("es-CO")}</p>
                 <p className="text-ink" style={{ fontSize: 11, fontWeight: 700, marginTop: 2 }}>ERP sin correo</p>
                 <p className="text-stone" style={{ fontSize: 10 }}>
-                  {kpis.erp_pendiente_sin_correo} pend. · {kpis.erp_saldada_sin_correo} sald.
+                  {kpis.erp_saldada_sin_correo != null
+                    ? `${kpis.erp_pendiente_sin_correo} pend. · ${kpis.erp_saldada_sin_correo} sald.`
+                    : "Solo pendientes (saldadas ya no cuentan)"}
                 </p>
               </Card>
             </Link>
-            <Link href="/conciliacion?tab=conciliadas">
+            <Link href={soloMercancia ? "/conciliacion?tab=conciliadas" : "/conciliacion?tab=conciliadas&todos=1"}>
               <Card style={{ borderColor: "var(--color-success)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-success)" }}>
                   En orden
@@ -301,6 +338,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
           <div className="overflow-hidden rounded-lg border border-line bg-paper shadow-sm">
             <ConciliacionTabs
               active={tab}
+              todos={!soloMercancia}
               tabs={[
                 { key: "alertas", label: "Descuentos por perder", count: counts.alertas },
                 { key: "correo-sin-erp", label: "Correo sin ERP", count: counts.correoSinErp },
