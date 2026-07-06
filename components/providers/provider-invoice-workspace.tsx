@@ -423,34 +423,52 @@ export function ProviderInvoiceWorkspace({
                 </tr>
               </thead>
               <tbody>
-                {reconciling.map((r) => (
-                  <tr key={r.invoice_key} className="border-b border-line last:border-0">
-                    <td className="px-3 py-2 text-ink">{r.num_factura}</td>
-                    <td className="px-3 py-2 text-stone">{r.fecha_emision_correo ? formatDateEs(r.fecha_emision_correo) : "—"}</td>
-                    <td className="num px-3 py-2 text-right text-ink">{formatFull(r.valor_total_correo)}</td>
-                    <td className="px-3 py-2">
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setExclusionCandidates([
-                              {
-                                invoiceKey: r.invoice_key,
-                                numFactura: r.num_factura,
-                                proveedor: providerNombre,
-                                valor: r.valor_total_correo,
-                              },
-                            ])
-                          }
-                          className="flex items-center gap-1 text-stone hover:text-red-deep"
-                          style={{ fontSize: 10, fontWeight: 700 }}
-                        >
-                          <X size={10} /> Excluir
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                {reconciling.map((r) => {
+                  const esNC = r.tipo_documento_correo === "NOTA_CREDITO";
+                  return (
+                    <tr key={r.invoice_key} className="border-b border-line last:border-0">
+                      <td className="px-3 py-2" style={{ color: esNC ? "var(--color-red-deep)" : "var(--color-ink)", fontWeight: esNC ? 700 : 400 }}>
+                        {esNC && (
+                          <span
+                            className="mr-1.5 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                            style={{ fontSize: 8.5 }}
+                          >
+                            NC
+                          </span>
+                        )}
+                        {r.num_factura}
+                      </td>
+                      <td className="px-3 py-2 text-stone">{r.fecha_emision_correo ? formatDateEs(r.fecha_emision_correo) : "—"}</td>
+                      <td
+                        className="num px-3 py-2 text-right"
+                        style={{ color: esNC ? "var(--color-red-deep)" : "var(--color-ink)", fontWeight: esNC ? 700 : 400 }}
+                      >
+                        {esNC ? `−${formatFull(Math.abs(r.valor_total_correo))}` : formatFull(r.valor_total_correo)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExclusionCandidates([
+                                {
+                                  invoiceKey: r.invoice_key,
+                                  numFactura: r.num_factura,
+                                  proveedor: providerNombre,
+                                  valor: r.valor_total_correo,
+                                },
+                              ])
+                            }
+                            className="flex items-center gap-1 text-stone hover:text-red-deep"
+                            style={{ fontSize: 10, fontWeight: 700 }}
+                          >
+                            <X size={10} /> Excluir
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}

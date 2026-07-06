@@ -131,11 +131,12 @@ export interface ProviderReconcilingRow {
   num_factura: string;
   fecha_emision_correo: string | null;
   valor_total_correo: number;
+  tipo_documento_correo: "FACTURA" | "NOTA_CREDITO";
 }
 
 export async function getProviderReconciling(nombreNormalizado: string): Promise<ProviderReconcilingRow[]> {
   const res = await postgrestFetch(
-    `/v_email_without_erp?proveedor_norm=eq.${nombreNormalizado}&select=invoice_key,num_factura,fecha_emision_correo,valor_total_correo&order=fecha_emision_correo.desc`,
+    `/v_email_without_erp?proveedor_norm=eq.${nombreNormalizado}&select=invoice_key,num_factura,fecha_emision_correo,valor_total_correo,tipo_documento_correo&order=fecha_emision_correo.desc`,
     {},
     "treasury"
   );
