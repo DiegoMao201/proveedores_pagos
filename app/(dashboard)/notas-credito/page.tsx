@@ -2,6 +2,7 @@ import { AlertCircle, FileMinus } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getNotasCreditoEstrategicas } from "@/lib/notas-credito-data";
 import { formatFull, formatDateEs } from "@/lib/format";
+import { NotasCreditoExportButton } from "@/components/notas-credito/export-button";
 
 export default async function NotasCreditoPage() {
   let dataError: string | null = null;
@@ -19,11 +20,14 @@ export default async function NotasCreditoPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <h1 className="text-2xl font-bold text-ink">Notas crédito</h1>
-        <p className="text-sm text-stone">
-          Todas las notas crédito pendientes de proveedores estratégicos (mercancía), en un solo lugar.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-ink">Notas crédito</h1>
+          <p className="text-sm text-stone">
+            Todas las notas crédito pendientes de proveedores estratégicos (mercancía), en un solo lugar.
+          </p>
+        </div>
+        <NotasCreditoExportButton disabled={rows.length === 0} />
       </div>
 
       {dataError ? (
