@@ -10,10 +10,7 @@ import {
   getPendingAging,
   getPaymentCalendar,
   getPaymentRunway,
-  getUrgentInvoices,
-  getTopProvidersByVolume,
-  getPendingDiscounts,
-  getRetentionsToReview,
+  getDashboardOperationalData,
   getSystemHealth,
   type DashboardKpis,
   type UrgentInvoiceRow,
@@ -100,14 +97,17 @@ export default async function DashboardPage() {
   let unknownProviders: UnknownProviderRow[] = [];
 
   try {
-    [urgentInvoices, topProviders, pendingDiscounts, retentionsToReview, systemHealth, unknownProviders] = await Promise.all([
-      canSeeOperativeActions ? getUrgentInvoices() : Promise.resolve([]),
-      getTopProvidersByVolume(),
-      isContabilidad ? getPendingDiscounts() : Promise.resolve([]),
-      isContabilidad ? getRetentionsToReview() : Promise.resolve([]),
+    const [operational, health, unknown] = await Promise.all([
+      getDashboardOperationalData(),
       isAdmin ? getSystemHealth() : Promise.resolve([]),
       isAdmin ? getUnknownProviders() : Promise.resolve([]),
     ]);
+    urgentInvoices = operational.urgentInvoices;
+    topProviders = operational.topProviders;
+    pendingDiscounts = operational.pendingDiscounts;
+    retentionsToReview = operational.retentionsToReview;
+    systemHealth = health;
+    unknownProviders = unknown;
   } catch {
     // Estas cards son informativas -- si fallan, no rompen el resto de /inicio.
   }

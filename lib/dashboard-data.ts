@@ -102,10 +102,6 @@ export interface UrgentInvoiceRow {
   descuento_en_riesgo: boolean;
 }
 
-export async function getUrgentInvoices(limit = 20): Promise<UrgentInvoiceRow[]> {
-  return fetchTreasury<UrgentInvoiceRow[]>(`/v_urgent_invoices?select=*&limit=${limit}`);
-}
-
 export interface TopProviderRow {
   proveedor_id: number;
   nombre_proveedor: string;
@@ -116,10 +112,6 @@ export interface TopProviderRow {
   bruto_ncs: number | null;
   neto_total: number;
   dias_a_vencer_mas_urgente: number | null;
-}
-
-export async function getTopProvidersByVolume(limit = 5): Promise<TopProviderRow[]> {
-  return fetchTreasury<TopProviderRow[]>(`/v_top_providers_by_volume?select=*&limit=${limit}`);
 }
 
 export interface PendingDiscountRow {
@@ -136,10 +128,6 @@ export interface PendingDiscountRow {
   valor_neto: number;
   descuento_pct: number;
   estado_descuento: "ya_perdido" | "critico" | "urgente" | "vigente";
-}
-
-export async function getPendingDiscounts(limit = 10): Promise<PendingDiscountRow[]> {
-  return fetchTreasury<PendingDiscountRow[]>(`/v_pending_discounts?select=*&limit=${limit}`);
 }
 
 export interface RetentionToReviewRow {
@@ -159,8 +147,180 @@ export interface RetentionToReviewRow {
   flag_revision: "autoretenedor_con_fuente" | "retencion_alta" | "triple_retencion" | "normal";
 }
 
-export async function getRetentionsToReview(): Promise<RetentionToReviewRow[]> {
-  return fetchTreasury<RetentionToReviewRow[]>("/v_retentions_to_review?select=*&flag_revision=neq.normal");
+interface DashboardInvoiceCalcRow {
+  invoice_key: string;
+  num_factura: string;
+  proveedor_id: number;
+  nombre_proveedor: string;
+  categoria_proveedor: string;
+  tipo_documento: "factura" | "nota_credito";
+  es_seleccionable: boolean;
+  fecha_emision: string;
+  fecha_vencimiento: string | null;
+  dias_a_vencer: number | null;
+  valor_bruto: number;
+  valor_descuento: number | null;
+  valor_retencion_fuente: number | null;
+  valor_retencion_ica: number | null;
+  valor_retencion_iva: number | null;
+  valor_retencion_otros: number | null;
+  valor_neto: number | null;
+  es_autoretenedor: boolean | null;
+  proveedor_activo: boolean;
+}
+
+export interface DashboardOperationalData {
+  urgentInvoices: UrgentInvoiceRow[];
+  topProviders: TopProviderRow[];
+  pendingDiscounts: PendingDiscountRow[];
+  retentionsToReview: RetentionToReviewRow[];
+}
+
+// Antes /inicio llamaba 4 vistas separadas (v_urgent_invoices,
+// v_top_providers_by_volume, v_pending_discounts, v_retentions_to_review),
+// cada una re-evaluando get_provider_invoices_with_calc(NULL) por su
+// cuenta (~300-700ms cada una, sin forma de compartir el calculo entre
+// requests HTTP distintos). Un solo fetch de la vista consolidada +
+// derivacion en JS reduce eso a 1 calculo por carga de pagina. La logica
+// de filtro/orden/etiquetas es identica a la que tenian las vistas SQL
+// originales, solo movida aqui.
+export async function getDashboardOperationalData(): Promise<DashboardOperationalData> {
+  const rows = await fetchTreasury<DashboardInvoiceCalcRow[]>("/v_dashboard_invoices_calc?select=*");
+
+  const conCalculo = rows.filter(
+    (r): r is DashboardInvoiceCalcRow & { valor_descuento: number; valor_neto: number } =>
+      r.valor_descuento !== null && r.valor_neto !== null
+  );
+
+  const urgentInvoices: UrgentInvoiceRow[] = conCalculo
+    .filter((r) => r.tipo_documento === "factura" && r.es_seleccionable && r.dias_a_vencer !== null && r.dias_a_vencer <= 10)
+    .sort((a, b) => (a.dias_a_vencer! - b.dias_a_vencer!) || b.valor_neto - a.valor_neto)
+    .slice(0, 20)
+    .map((r) => {
+      const dias = r.dias_a_vencer!;
+      const nivel_urgencia: UrgentInvoiceRow["nivel_urgencia"] =
+        dias < 0 ? "vencida" : dias <= 2 ? "critica" : dias <= 5 ? "urgente" : "proxima";
+      return {
+        invoice_key: r.invoice_key,
+        num_factura: r.num_factura,
+        proveedor_id: r.proveedor_id,
+        nombre_proveedor: r.nombre_proveedor,
+        categoria_proveedor: r.categoria_proveedor,
+        fecha_emision: r.fecha_emision,
+        fecha_vencimiento: r.fecha_vencimiento,
+        dias_a_vencer: dias,
+        valor_bruto: r.valor_bruto,
+        valor_descuento: r.valor_descuento,
+        valor_retencion_total: (r.valor_retencion_fuente ?? 0) + (r.valor_retencion_ica ?? 0) + (r.valor_retencion_iva ?? 0) + (r.valor_retencion_otros ?? 0),
+        valor_neto: r.valor_neto,
+        nivel_urgencia,
+        descuento_en_riesgo: r.valor_descuento > 0 && dias <= 5,
+      };
+    });
+
+  const pendingDiscounts: PendingDiscountRow[] = conCalculo
+    .filter((r) => r.tipo_documento === "factura" && r.es_seleccionable && r.valor_descuento > 0)
+    .sort((a, b) => {
+      const diasA = a.dias_a_vencer ?? Infinity;
+      const diasB = b.dias_a_vencer ?? Infinity;
+      return diasA - diasB || b.valor_descuento - a.valor_descuento;
+    })
+    .slice(0, 10)
+    .map((r) => {
+      const dias = r.dias_a_vencer;
+      const estado_descuento: PendingDiscountRow["estado_descuento"] =
+        dias === null ? "vigente" : dias <= 0 ? "ya_perdido" : dias <= 2 ? "critico" : dias <= 5 ? "urgente" : "vigente";
+      return {
+        invoice_key: r.invoice_key,
+        num_factura: r.num_factura,
+        nombre_proveedor: r.nombre_proveedor,
+        categoria_proveedor: r.categoria_proveedor,
+        proveedor_id: r.proveedor_id,
+        fecha_emision: r.fecha_emision,
+        fecha_vencimiento: r.fecha_vencimiento,
+        dias_a_vencer: dias,
+        valor_bruto: r.valor_bruto,
+        valor_descuento: r.valor_descuento,
+        valor_neto: r.valor_neto,
+        descuento_pct: r.valor_bruto ? Math.round((r.valor_descuento / r.valor_bruto) * 10000) / 100 : 0,
+        estado_descuento,
+      };
+    });
+
+  const retentionsToReview: RetentionToReviewRow[] = conCalculo
+    .filter((r) => r.tipo_documento === "factura" && r.es_seleccionable)
+    .map((r) => {
+      const fuente = r.valor_retencion_fuente ?? 0;
+      const ica = r.valor_retencion_ica ?? 0;
+      const iva = r.valor_retencion_iva ?? 0;
+      const otros = r.valor_retencion_otros ?? 0;
+      const total = fuente + ica + iva + otros;
+      const flag_revision: RetentionToReviewRow["flag_revision"] =
+        r.es_autoretenedor && fuente > 0
+          ? "autoretenedor_con_fuente"
+          : r.valor_bruto && total / r.valor_bruto > 0.3
+          ? "retencion_alta"
+          : fuente > 0 && ica > 0 && iva > 0
+          ? "triple_retencion"
+          : "normal";
+      return {
+        invoice_key: r.invoice_key,
+        num_factura: r.num_factura,
+        nombre_proveedor: r.nombre_proveedor,
+        proveedor_id: r.proveedor_id,
+        fecha_emision: r.fecha_emision,
+        valor_bruto: r.valor_bruto,
+        valor_retencion_fuente: fuente,
+        valor_retencion_ica: ica,
+        valor_retencion_iva: iva,
+        valor_retencion_otros: otros,
+        retencion_total: total,
+        retencion_pct: r.valor_bruto ? Math.round((total / r.valor_bruto) * 10000) / 100 : 0,
+        es_autoretenedor: r.es_autoretenedor ?? false,
+        flag_revision,
+      };
+    })
+    .filter((r) => r.retencion_total > 0 && r.flag_revision !== "normal")
+    .sort((a, b) => {
+      const rank = (f: string) => (f === "autoretenedor_con_fuente" ? 1 : f === "retencion_alta" ? 2 : 3);
+      return rank(a.flag_revision) - rank(b.flag_revision) || b.valor_bruto - a.valor_bruto;
+    });
+
+  const porProveedor = new Map<number, TopProviderRow>();
+  for (const r of rows) {
+    if (!r.proveedor_activo || !(r.categoria_proveedor === "estrategico" || r.categoria_proveedor === "locativo")) continue;
+    let acc = porProveedor.get(r.proveedor_id);
+    if (!acc) {
+      acc = {
+        proveedor_id: r.proveedor_id,
+        nombre_proveedor: r.nombre_proveedor,
+        categoria_proveedor: r.categoria_proveedor,
+        num_facturas: 0,
+        num_ncs: 0,
+        bruto_facturas: 0,
+        bruto_ncs: 0,
+        neto_total: 0,
+        dias_a_vencer_mas_urgente: null,
+      };
+      porProveedor.set(r.proveedor_id, acc);
+    }
+    if (r.tipo_documento === "factura") {
+      acc.num_facturas++;
+      acc.bruto_facturas = (acc.bruto_facturas ?? 0) + r.valor_bruto;
+      if (r.dias_a_vencer !== null && (acc.dias_a_vencer_mas_urgente === null || r.dias_a_vencer < acc.dias_a_vencer_mas_urgente)) {
+        acc.dias_a_vencer_mas_urgente = r.dias_a_vencer;
+      }
+    } else {
+      acc.num_ncs++;
+      acc.bruto_ncs = (acc.bruto_ncs ?? 0) + r.valor_bruto;
+    }
+    acc.neto_total += r.valor_neto ?? r.valor_bruto;
+  }
+  const topProviders = Array.from(porProveedor.values())
+    .sort((a, b) => b.neto_total - a.neto_total)
+    .slice(0, 5);
+
+  return { urgentInvoices, topProviders, pendingDiscounts, retentionsToReview };
 }
 
 export interface SystemHealthRow {
