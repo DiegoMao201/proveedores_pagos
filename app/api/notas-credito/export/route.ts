@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { auth } from "@/auth";
-import { getNotasCreditoEstrategicas } from "@/lib/notas-credito-data";
+import { getNotasCredito } from "@/lib/notas-credito-data";
 import { humanizeProviderName } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export async function GET() {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "NO_SESSION" }, { status: 401 });
 
-  const rows = await getNotasCreditoEstrategicas();
+  const rows = await getNotasCredito();
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Ferreinox — Pagos Proveedores";

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { FilePlus, Layers, ChevronDown } from "lucide-react";
+import { FilePlus, Layers, ChevronDown, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { getBatchesSummaryList, type BatchListRow } from "@/lib/lotes-data";
 import { formatCompact, formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
+import { ReportePagosButton } from "@/components/lotes/reporte-pagos-button";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
@@ -33,6 +34,9 @@ export default async function LotesPage({ searchParams }: PageProps) {
   const estadoFiltro = sp.estado ?? "activos";
   const tipoFiltro = sp.tipo ?? "todos";
   const categoriaFiltro = sp.categoria ?? "todas";
+  const proveedorFiltro = sp.proveedor?.trim() ?? "";
+  const desdeFiltro = sp.desde ?? "";
+  const hastaFiltro = sp.hasta ?? "";
 
   let dataError: string | null = null;
   let batches: BatchListRow[] = [];
@@ -61,11 +65,30 @@ export default async function LotesPage({ searchParams }: PageProps) {
   if (tipoFiltro === "single") filtered = filtered.filter((b) => !b.es_multiproveedor);
   if (tipoFiltro === "multi") filtered = filtered.filter((b) => b.es_multiproveedor);
   if (categoriaFiltro !== "todas") filtered = filtered.filter((b) => b.categoria_lote === categoriaFiltro);
+  if (proveedorFiltro) {
+    const needle = proveedorFiltro.toLowerCase();
+    filtered = filtered.filter(
+      (b) =>
+        b.proveedor_nombre_single?.toLowerCase().includes(needle) ||
+        b.proveedores_nombres_concat?.toLowerCase().includes(needle)
+    );
+  }
+  if (desdeFiltro) filtered = filtered.filter((b) => b.fecha_pago_programada >= desdeFiltro);
+  if (hastaFiltro) filtered = filtered.filter((b) => b.fecha_pago_programada <= hastaFiltro);
 
   function filterHref(next: Record<string, string>) {
-    const params = new URLSearchParams({ estado: estadoFiltro, tipo: tipoFiltro, categoria: categoriaFiltro, ...next });
+    const params = new URLSearchParams({
+      estado: estadoFiltro,
+      tipo: tipoFiltro,
+      categoria: categoriaFiltro,
+      ...(proveedorFiltro ? { proveedor: proveedorFiltro } : {}),
+      ...(desdeFiltro ? { desde: desdeFiltro } : {}),
+      ...(hastaFiltro ? { hasta: hastaFiltro } : {}),
+      ...next,
+    });
     return `/lotes?${params.toString()}`;
   }
+  const hayFiltrosLibres = Boolean(proveedorFiltro || desdeFiltro || hastaFiltro);
 
   return (
     <div className="flex flex-col gap-3">
@@ -78,7 +101,9 @@ export default async function LotesPage({ searchParams }: PageProps) {
             {draftBatches.length + exportedBatches.length} lotes activos · {paidThisMonth.length} pagados este mes
           </p>
         </div>
-        <details className="relative">
+        <div className="flex items-center gap-2">
+          <ReportePagosButton />
+          <details className="relative">
           <summary
             className="flex cursor-pointer list-none items-center gap-1.5 rounded-md bg-red-deep px-3.5 py-2 text-white"
             style={{ fontSize: 12, fontWeight: 800 }}
@@ -96,7 +121,8 @@ export default async function LotesPage({ searchParams }: PageProps) {
               Desde proveedor específico
             </Link>
           </div>
-        </details>
+          </details>
+        </div>
       </div>
 
       {dataError ? (
@@ -157,6 +183,55 @@ export default async function LotesPage({ searchParams }: PageProps) {
               { key: "mixto", label: "Mixto" },
             ]} makeHref={(k) => filterHref({ categoria: k })} />
           </div>
+
+          <Card>
+            <form method="GET" className="flex flex-wrap items-end gap-2.5">
+              <input type="hidden" name="estado" value={estadoFiltro} />
+              <input type="hidden" name="tipo" value={tipoFiltro} />
+              <input type="hidden" name="categoria" value={categoriaFiltro} />
+              <div className="flex min-w-[200px] flex-1 flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Proveedor
+                </label>
+                <div className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1.5">
+                  <Search size={13} className="text-stone" />
+                  <input
+                    type="text"
+                    name="proveedor"
+                    defaultValue={proveedorFiltro}
+                    placeholder="Buscar por nombre…"
+                    className="w-full bg-transparent outline-none"
+                    style={{ fontSize: 11.5 }}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Fecha pago desde
+                </label>
+                <input type="date" name="desde" defaultValue={desdeFiltro} className="rounded-md border border-line px-2 py-1.5" style={{ fontSize: 11.5 }} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Fecha pago hasta
+                </label>
+                <input type="date" name="hasta" defaultValue={hastaFiltro} className="rounded-md border border-line px-2 py-1.5" style={{ fontSize: 11.5 }} />
+              </div>
+              <button type="submit" className="rounded-md bg-red-deep px-4 py-2 text-white" style={{ fontSize: 11.5, fontWeight: 800 }}>
+                Filtrar
+              </button>
+              {hayFiltrosLibres && (
+                <Link
+                  href={filterHref({ proveedor: "", desde: "", hasta: "" })}
+                  prefetch={false}
+                  className="rounded-md border border-line px-3 py-2 text-graphite"
+                  style={{ fontSize: 11.5, fontWeight: 700 }}
+                >
+                  Limpiar
+                </Link>
+              )}
+            </form>
+          </Card>
 
           {filtered.length === 0 ? (
             <Card className="flex flex-col items-center gap-3 py-16 text-center">
