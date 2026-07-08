@@ -138,6 +138,7 @@ export function LoteDetail({
 
   const estado = ESTADO_LABELS[batch.estado];
   const esMultiproveedor = batch.es_multiproveedor;
+  const todoPortal = breakdown.length > 0 && breakdown.every((b) => b.medio_pago === "portal_proveedor");
 
   function toggleCollapsed(providerId: number) {
     setCollapsed((prev) => {
@@ -151,12 +152,22 @@ export function LoteDetail({
   function handleExport() {
     startTransition(async () => {
       const res = await fetch(`/api/lotes/${batch.codigo_lote}/export-pab`);
+      const contentType = res.headers.get("Content-Type") ?? "";
+
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; proveedores_afectados?: string[] };
         const detalle = body.proveedores_afectados?.length ? `: ${body.proveedores_afectados.join(", ")}` : "";
         showToast({ kind: "error", message: `${body.error ?? "No se pudo exportar el PAB"}${detalle}` });
         return;
       }
+
+      if (contentType.includes("application/json")) {
+        const body = (await res.json()) as { mensaje?: string };
+        showToast({ kind: "success", message: body.mensaje ?? "Lote exportado (no requiere archivo PAB)." });
+        router.refresh();
+        return;
+      }
+
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -166,7 +177,14 @@ export function LoteDetail({
       a.download = match?.[1] ?? `PAB_${batch.codigo_lote}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast({ kind: "success", message: "PAB exportado." });
+
+      const proveedoresPortalHeader = res.headers.get("X-Proveedores-Via-Portal");
+      showToast({
+        kind: "success",
+        message: proveedoresPortalHeader
+          ? `PAB exportado. Nota: ${decodeURIComponent(proveedoresPortalHeader)} se paga(n) por portal propio — excluido(s) del archivo.`
+          : "PAB exportado.",
+      });
       router.refresh();
     });
   }
@@ -317,7 +335,7 @@ export function LoteDetail({
           {batch.estado === "draft" && (
             <>
               <button type="button" disabled={pending} onClick={handleExport} className="flex items-center gap-1.5 rounded-md bg-red-deep px-4 py-2 text-white disabled:opacity-40" style={{ fontSize: 12, fontWeight: 800 }}>
-                <Download size={14} /> {pending ? "Exportando…" : "Exportar PAB Bancolombia"}
+                <Download size={14} /> {pending ? "Exportando…" : todoPortal ? "Marcar como exportado (sin PAB)" : "Exportar PAB Bancolombia"}
               </button>
               <button type="button" onClick={() => setCancelOpen(true)} className="rounded-md border border-line px-3 py-2 text-graphite" style={{ fontSize: 12, fontWeight: 700 }}>
                 Cancelar lote

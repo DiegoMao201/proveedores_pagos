@@ -25,6 +25,8 @@ interface PabDetalle {
 interface PabStructure {
   error?: string;
   proveedores_afectados?: string[];
+  sin_pab_requerido?: boolean;
+  motivo?: string;
   cabecera?: {
     nit_pagador: string;
     tipo_pago: string;
@@ -35,6 +37,9 @@ interface PabStructure {
     descripcion_pago: string;
   };
   detalle?: PabDetalle[];
+  metadata?: {
+    proveedores_via_portal?: string[];
+  };
 }
 
 export async function GET(_req: Request, { params }: { params: Promise<{ codigo: string }> }) {
@@ -53,6 +58,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ codigo:
   if (!pabRes.ok) return NextResponse.json({ error: `HTTP ${pabRes.status}: ${await pabRes.text()}` }, { status: 500 });
 
   const pab = (await pabRes.json()) as PabStructure;
+
+  if (pab.sin_pab_requerido) {
+    const markResult = await markBatchExported(batch.id, batch.codigo_lote);
+    if (!markResult.ok) {
+      return NextResponse.json({ error: markResult.error ?? "NO_SE_PUDO_MARCAR_EXPORTADO" }, { status: 400 });
+    }
+    return NextResponse.json({
+      sin_pab_requerido: true,
+      mensaje: pab.motivo ?? "Este lote no requiere archivo PAB.",
+    });
+  }
+
   if (pab.error || !pab.cabecera || !pab.detalle) {
     return NextResponse.json({ error: pab.error ?? "PAB_STRUCTURE_EMPTY", proveedores_afectados: pab.proveedores_afectados }, { status: 400 });
   }
@@ -92,10 +109,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ codigo:
   const stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 13);
   const filename = `PAB_${codigo}_${stamp}.xlsx`;
 
-  return new NextResponse(buffer as unknown as BodyInit, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-    },
-  });
+  const proveedoresPortal = pab.metadata?.proveedores_via_portal ?? [];
+  const headers: Record<string, string> = {
+    "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "Content-Disposition": `attachment; filename="${filename}"`,
+  };
+  if (proveedoresPortal.length > 0) {
+    headers["X-Proveedores-Via-Portal"] = encodeURIComponent(proveedoresPortal.join(", "));
+  }
+
+  return new NextResponse(buffer as unknown as BodyInit, { headers });
 }

@@ -79,14 +79,17 @@ export async function createProvider(data: {
   return rows[0];
 }
 
+export type MedioPago = "transferencia" | "portal_proveedor";
+
 export interface BankAccountInput {
+  medio_pago: MedioPago;
   tipo_documento_beneficiario: number;
   nit_beneficiario: string;
   nombre_beneficiario: string;
-  tipo_transaccion: number;
-  codigo_banco: number;
-  numero_cuenta: string;
-  tipo_cuenta: "S" | "D";
+  tipo_transaccion: number | null;
+  codigo_banco: number | null;
+  numero_cuenta: string | null;
+  tipo_cuenta: "S" | "D" | null;
   email_pago: string | null;
   referencia: string | null;
   celular_beneficiario: string | null;
@@ -94,13 +97,18 @@ export interface BankAccountInput {
 
 export async function createBankAccount(providerId: number, data: BankAccountInput) {
   const userId = await currentUserId();
+  const esPortal = data.medio_pago === "portal_proveedor";
 
-  const checkRes = await postgrestFetch(
-    `/rpc/check_bancolombia_inscription`,
-    { method: "POST", body: JSON.stringify({ p_numero_cuenta: data.numero_cuenta, p_codigo_banco: data.codigo_banco }) },
-    "providers"
-  );
-  const check = checkRes.ok ? ((await checkRes.json()) as { inscrita: boolean }) : { inscrita: false };
+  let inscrita = false;
+  if (!esPortal) {
+    const checkRes = await postgrestFetch(
+      `/rpc/check_bancolombia_inscription`,
+      { method: "POST", body: JSON.stringify({ p_numero_cuenta: data.numero_cuenta, p_codigo_banco: data.codigo_banco }) },
+      "providers"
+    );
+    const check = checkRes.ok ? ((await checkRes.json()) as { inscrita: boolean }) : { inscrita: false };
+    inscrita = check.inscrita;
+  }
 
   const existingRes = await postgrestFetch(`/bank_account?provider_id=eq.${providerId}&select=id&limit=1`, {}, "providers");
   const existing = existingRes.ok ? ((await existingRes.json()) as unknown[]) : [];
@@ -113,8 +121,8 @@ export async function createBankAccount(providerId: number, data: BankAccountInp
         ...data,
         provider_id: providerId,
         es_principal: existing.length === 0,
-        inscrita_bancolombia: check.inscrita,
-        fecha_inscripcion: check.inscrita ? new Date().toISOString().slice(0, 10) : null,
+        inscrita_bancolombia: inscrita,
+        fecha_inscripcion: inscrita ? new Date().toISOString().slice(0, 10) : null,
         created_by: userId,
         updated_by: userId,
       }),
@@ -123,7 +131,7 @@ export async function createBankAccount(providerId: number, data: BankAccountInp
   );
   if (!res.ok) throw new Error(`PostgREST POST /bank_account -> HTTP ${res.status}: ${await res.text()}`);
   revalidatePath(`/proveedores/${providerId}`);
-  return { inscrita: check.inscrita };
+  return { inscrita };
 }
 
 export async function deactivateBankAccount(id: number, providerId: number) {

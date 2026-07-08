@@ -54,10 +54,22 @@ export interface BatchProviderBreakdownRow {
   referencia_beneficiario: string | null;
   celular_beneficiario: string | null;
   inscrita_bancolombia: boolean;
+  medio_pago: "transferencia" | "portal_proveedor" | null;
 }
 
 export async function getBatchProviderBreakdown(batchId: number): Promise<BatchProviderBreakdownRow[]> {
   const res = await postgrestFetch(`/v_batch_provider_breakdown?batch_id=eq.${batchId}&select=*&order=total_neto.desc`, {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_batch_provider_breakdown -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+export async function getBatchProviderBreakdownForBatches(batchIds: number[]): Promise<BatchProviderBreakdownRow[]> {
+  if (batchIds.length === 0) return [];
+  const res = await postgrestFetch(
+    `/v_batch_provider_breakdown?batch_id=in.(${batchIds.join(",")})&select=*&order=proveedor_nombre.asc`,
+    {},
+    "treasury"
+  );
   if (!res.ok) throw new Error(`PostgREST /v_batch_provider_breakdown -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }

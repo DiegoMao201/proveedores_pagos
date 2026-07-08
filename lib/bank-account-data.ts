@@ -15,13 +15,14 @@ export async function getBankCatalog(): Promise<BankCatalogRow[]> {
 export interface BankAccountRow {
   id: number;
   provider_id: number;
+  medio_pago: "transferencia" | "portal_proveedor";
   tipo_documento_beneficiario: number;
   nit_beneficiario: string;
   nombre_beneficiario: string;
-  tipo_transaccion: number;
-  codigo_banco: number;
-  numero_cuenta: string;
-  tipo_cuenta: "S" | "D";
+  tipo_transaccion: number | null;
+  codigo_banco: number | null;
+  numero_cuenta: string | null;
+  tipo_cuenta: "S" | "D" | null;
   email_pago: string | null;
   referencia: string | null;
   celular_beneficiario: string | null;

@@ -60,7 +60,7 @@ export function BankAccountsTab({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="text-ink" style={{ fontWeight: 800, fontSize: 12 }}>
-          Cuentas bancarias
+          Cuentas y medios de pago
         </h2>
         {canEdit && (
           <AddBankAccountModal providerId={providerId} nitDefault={nitDefault} nombreDefault={nombreDefault} bankCatalog={bankCatalog} />
@@ -75,19 +75,25 @@ export function BankAccountsTab({
         </Card>
       ) : (
         <div className="flex flex-col gap-2">
-          {accounts.map((acc) => (
+          {accounts.map((acc) => {
+            const esPortal = acc.medio_pago === "portal_proveedor";
+            return (
             <Card key={acc.id} className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-ink" style={{ fontWeight: 700, fontSize: 12 }}>
-                    {bankName(bankCatalog, acc.codigo_banco)}
+                    {esPortal ? "Portal del proveedor" : bankName(bankCatalog, acc.codigo_banco!)}
                   </p>
                   {acc.es_principal && (
                     <span className="inline-flex items-center rounded-full bg-cream-soft px-2 py-0.5 font-extrabold text-red-deep" style={{ fontSize: 9 }}>
                       PRINCIPAL
                     </span>
                   )}
-                  {acc.inscrita_bancolombia ? (
+                  {esPortal ? (
+                    <span className="inline-flex items-center rounded-full bg-cream-soft px-2 py-0.5 font-bold text-orange" style={{ fontSize: 9 }}>
+                      Sin transferencia — no genera PAB
+                    </span>
+                  ) : acc.inscrita_bancolombia ? (
                     <span className="inline-flex items-center rounded-full bg-success/10 px-2 py-0.5 font-bold text-success" style={{ fontSize: 9 }}>
                       ✓ Inscrita en Bancolombia
                     </span>
@@ -98,7 +104,9 @@ export function BankAccountsTab({
                   )}
                 </div>
                 <p className="num text-stone" style={{ fontSize: 11, marginTop: 2 }}>
-                  {acc.numero_cuenta} · {acc.tipo_cuenta === "S" ? "Ahorros" : "Corriente"}
+                  {esPortal
+                    ? acc.referencia || "Sin instrucciones de portal registradas"
+                    : `${acc.numero_cuenta} · ${acc.tipo_cuenta === "S" ? "Ahorros" : "Corriente"}`}
                   {acc.email_pago ? ` · ${acc.email_pago}` : ""}
                 </p>
               </div>
@@ -127,7 +135,8 @@ export function BankAccountsTab({
                 </div>
               )}
             </Card>
-          ))}
+            );
+          })}
         </div>
       )}
       <Toast toast={toast} />
