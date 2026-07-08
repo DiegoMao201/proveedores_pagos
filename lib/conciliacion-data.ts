@@ -16,6 +16,7 @@ export interface ReconciledRow {
   diferencia_valor: number;
   diferencia_pct: number;
   categoria_proveedor: string | null;
+  nombre_provider: string | null;
 }
 
 export interface ConciliacionFilters {
@@ -46,6 +47,7 @@ export interface EmailWithoutErpRow {
   fecha_emision_correo: string | null;
   fecha_recepcion_correo: string | null;
   categoria_proveedor: string | null;
+  nombre_provider: string | null;
 }
 
 export interface ErpWithoutEmailRow {
@@ -57,6 +59,7 @@ export interface ErpWithoutEmailRow {
   valor_total_erp: number;
   estado_erp: "pendiente" | "saldada";
   categoria_proveedor: string | null;
+  nombre_provider: string | null;
 }
 
 export interface HistoricalCutoffs {
@@ -96,7 +99,14 @@ async function fetchPaged<T>(
   const offset = (page - 1) * pageSize;
   const f = opts.filters;
   const parts = [`select=${select}`, `order=${order}`];
-  if (f?.proveedor && opts.proveedorField) parts.push(`${opts.proveedorField}=ilike.*${encodeURIComponent(f.proveedor)}*`);
+  if (f?.proveedor && opts.proveedorField) {
+    // Busca tanto en el nombre crudo (correo/ERP) como en el nombre real del
+    // catalogo -- un proveedor puede facturar bajo su razon social legal
+    // (ej. Pintuco factura como "Compania Global de Pinturas S.A.S.") que no
+    // contiene el nombre comercial por el que Diego lo busca.
+    const needle = encodeURIComponent(f.proveedor);
+    parts.push(`or=(${opts.proveedorField}.ilike.*${needle}*,nombre_provider.ilike.*${needle}*)`);
+  }
   if (f?.categoria && f.categoria !== "todas") parts.push(`categoria_proveedor=eq.${f.categoria}`);
   if (f?.desde && opts.fechaField) parts.push(`${opts.fechaField}=gte.${f.desde}`);
   if (f?.hasta && opts.fechaField) parts.push(`${opts.fechaField}=lte.${f.hasta}`);
@@ -138,7 +148,7 @@ export async function getReconciledMercancia(page: number, pageSize: number, fil
 export async function getEmailWithoutErp(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp",
-    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,categoria_proveedor",
+    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,categoria_proveedor,nombre_provider",
     "fecha_recepcion_correo.desc",
     page,
     pageSize,
@@ -165,7 +175,7 @@ export async function getErpWithoutEmailMercancia(page: number, pageSize: number
 export async function getEmailWithoutErpMercancia(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp_mercancia",
-    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo",
+    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,nombre_provider",
     "fecha_recepcion_correo.desc",
     page,
     pageSize,
