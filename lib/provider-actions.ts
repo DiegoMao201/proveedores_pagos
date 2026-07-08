@@ -9,6 +9,14 @@ async function currentUserId(): Promise<string | null> {
   return session?.user.id ?? null;
 }
 
+function normalizeProviderName(nombre: string): string {
+  return nombre
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
 async function patchProvider(id: number, body: Record<string, unknown>) {
   const userId = await currentUserId();
   const res = await postgrestFetch(
@@ -58,11 +66,7 @@ export async function createProvider(data: {
   contacto_pagos: string | null;
 }): Promise<{ id: number }> {
   const userId = await currentUserId();
-  const nombreNormalizado = data.nombre
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^A-Z0-9]/g, "");
+  const nombreNormalizado = normalizeProviderName(data.nombre);
 
   const res = await postgrestFetch(
     "/provider",
@@ -77,6 +81,75 @@ export async function createProvider(data: {
   const rows = (await res.json()) as { id: number }[];
   revalidatePath("/proveedores");
   return rows[0];
+}
+
+export interface ProviderImportRow {
+  rowNumber: number;
+  nombre: string;
+  nif: string | null;
+  categoria_proveedor: string | null;
+  activo: boolean;
+  plazo_pago_dias: number | null;
+  forma_pago: string | null;
+  limite_credito: number | null;
+  dia_corte_pagos: number | null;
+  anomaly_detection: boolean;
+  email_pago: string | null;
+  telefono: string | null;
+  contacto_pagos: string | null;
+  contacto_cargo: string | null;
+  observaciones: string | null;
+  accion: "crear" | "actualizar";
+  proveedor_id: number | null;
+}
+
+export async function bulkImportProviders(
+  rows: ProviderImportRow[]
+): Promise<{ creados: number; actualizados: number; errores: { rowNumber: number; mensaje: string }[] }> {
+  const userId = await currentUserId();
+  let creados = 0;
+  let actualizados = 0;
+  const errores: { rowNumber: number; mensaje: string }[] = [];
+
+  for (const row of rows) {
+    const body = {
+      nombre: row.nombre,
+      nif: row.nif,
+      categoria_proveedor: row.categoria_proveedor,
+      activo: row.activo,
+      plazo_pago_dias: row.plazo_pago_dias,
+      forma_pago: row.forma_pago,
+      limite_credito: row.limite_credito,
+      dia_corte_pagos: row.dia_corte_pagos,
+      anomaly_detection: row.anomaly_detection,
+      email_pago: row.email_pago,
+      telefono: row.telefono,
+      contacto_pagos: row.contacto_pagos,
+      contacto_cargo: row.contacto_cargo,
+      observaciones: row.observaciones,
+      updated_by: userId,
+    };
+    try {
+      if (row.accion === "actualizar" && row.proveedor_id) {
+        const res = await postgrestFetch(`/provider?id=eq.${row.proveedor_id}`, { method: "PATCH", body: JSON.stringify(body) }, "providers");
+        if (!res.ok) throw new Error(await res.text());
+        actualizados++;
+      } else {
+        const res = await postgrestFetch(
+          "/provider",
+          { method: "POST", body: JSON.stringify({ ...body, nombre_normalizado: normalizeProviderName(row.nombre), created_by: userId }) },
+          "providers"
+        );
+        if (!res.ok) throw new Error(await res.text());
+        creados++;
+      }
+    } catch (e) {
+      errores.push({ rowNumber: row.rowNumber, mensaje: e instanceof Error ? e.message : "Error desconocido" });
+    }
+  }
+
+  revalidatePath("/proveedores");
+  return { creados, actualizados, errores };
 }
 
 export type MedioPago = "transferencia" | "portal_proveedor";

@@ -6,6 +6,7 @@ import { TableToolbar } from "@/components/data-table/table-toolbar";
 import { BankStatusBadge } from "@/components/providers/bank-status-badge";
 import { NewProviderModal } from "@/components/providers/new-provider-modal";
 import { ImportBancolombiaModal } from "@/components/providers/import-bancolombia-modal";
+import { ImportProvidersModal } from "@/components/providers/import-providers-modal";
 import { getProviderList } from "@/lib/bank-account-data";
 import { humanizeProviderName } from "@/lib/format";
 
@@ -47,6 +48,7 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && <ImportProvidersModal />}
           {isAdmin && <ImportBancolombiaModal />}
           <NewProviderModal />
         </div>
