@@ -99,7 +99,13 @@ export function CreateBatchModal({
 
   const categoria = totals.descuento > 0 ? "CON_DESCUENTO" : "SIN_DESCUENTO";
   const destAccount = destAccounts.find((a) => a.id === destAccountId);
-  const canSubmit = ownAccountId > 0 && destAccountId > 0 && destAccount?.inscrita_bancolombia;
+  // El medio de pago (transferencia Bancolombia, transferencia por otro banco,
+  // o portal del proveedor) NO debe bloquear la creacion del lote -- solo
+  // condiciona si mas adelante se puede exportar el PAB. Bloquear aqui
+  // impedia armar lotes para proveedores que se pagan por Davivienda u otro
+  // banco no inscrito en Bancolombia, o por el portal propio del proveedor.
+  const canSubmit = ownAccountId > 0 && destAccountId > 0 && Boolean(destAccount);
+  const esPortal = destAccount?.medio_pago === "portal_proveedor";
 
   const facturasSeleccionadas = selectedInvoices.filter((i) => i.tipo_documento === "factura");
   const ncsSeleccionadas = selectedInvoices.filter((i) => i.tipo_documento === "nota_credito");
@@ -194,18 +200,26 @@ export function CreateBatchModal({
               <select className={inputClassName(false)} value={destAccountId} onChange={(e) => setDestAccountId(Number(e.target.value))}>
                 {destAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.numero_cuenta} {a.es_principal ? "(principal)" : ""}
+                    {a.medio_pago === "portal_proveedor" ? "Portal del proveedor" : a.numero_cuenta} {a.es_principal ? "(principal)" : ""}
                   </option>
                 ))}
               </select>
             ) : destAccount ? (
               <div className="rounded-md border border-line bg-parchment px-3 py-2" style={{ fontSize: 11 }}>
-                <div>Cuenta: {destAccount.numero_cuenta} ({destAccount.tipo_cuenta === "S" ? "Ahorros" : "Corriente"})</div>
+                {esPortal ? (
+                  <div>Medio de pago: Portal del proveedor{destAccount.referencia ? ` — ${destAccount.referencia}` : ""}</div>
+                ) : (
+                  <div>Cuenta: {destAccount.numero_cuenta} ({destAccount.tipo_cuenta === "S" ? "Ahorros" : "Corriente"})</div>
+                )}
                 <div>Beneficiario: {destAccount.nombre_beneficiario}</div>
                 {destAccount.email_pago && <div>Email: {destAccount.email_pago}</div>}
-                <div className={destAccount.inscrita_bancolombia ? "text-success" : "text-orange"}>
-                  {destAccount.inscrita_bancolombia ? "✓ Inscrita en Bancolombia" : "⚠ No inscrita en Bancolombia"}
-                </div>
+                {esPortal ? (
+                  <div className="text-orange">Sin transferencia — no genera archivo PAB</div>
+                ) : (
+                  <div className={destAccount.inscrita_bancolombia ? "text-success" : "text-orange"}>
+                    {destAccount.inscrita_bancolombia ? "✓ Inscrita en Bancolombia" : "⚠ No inscrita en Bancolombia"}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="rounded-md border border-red bg-cream px-3 py-2 text-red-deep" style={{ fontSize: 11 }}>
@@ -247,10 +261,10 @@ export function CreateBatchModal({
               {pending ? "Creando…" : "Confirmar y crear lote"} <ArrowRight size={13} />
             </button>
           </div>
-          {!canSubmit && destAccount && !destAccount.inscrita_bancolombia && (
+          {destAccount && !esPortal && !destAccount.inscrita_bancolombia && (
             <p className="text-orange" style={{ fontSize: 10 }}>
               La cuenta destino no está inscrita en Bancolombia — no podrás exportar el PAB hasta inscribirla, pero el
-              lote puede crearse en estado borrador.
+              lote se puede crear igual (por ejemplo si se paga por otro banco).
             </p>
           )}
         </div>
