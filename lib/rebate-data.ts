@@ -154,6 +154,7 @@ export interface RebateInvoiceRow {
   valor_base_correo: number;
   es_nota_credito: boolean;
   esta_pendiente: boolean;
+  estado_erp: "pendiente" | "saldada" | "sin_match";
 }
 
 const INVOICE_LIST_LIMIT = 150;

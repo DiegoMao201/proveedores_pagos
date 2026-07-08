@@ -2,10 +2,18 @@ import { Card } from "@/components/ui/card";
 import { formatCompact, formatDateEs } from "@/lib/format";
 import type { RebateInvoiceRow } from "@/lib/rebate-data";
 
+const ESTADO_LABELS: Record<RebateInvoiceRow["estado_erp"], { label: string; className: string }> = {
+  pendiente: { label: "Pendiente", className: "text-orange" },
+  saldada: { label: "Saldada", className: "text-success" },
+  sin_match: { label: "Sin match en ERP", className: "text-red-deep" },
+};
+
 export function InvoiceTable({ rows, limit }: { rows: RebateInvoiceRow[]; limit: number }) {
   const totalNeto = rows.reduce((acc, r) => acc + (r.es_nota_credito ? -1 : 1) * r.valor_base_correo, 0);
   const totalNc = rows.filter((r) => r.es_nota_credito).length;
-  const totalPendientes = rows.filter((r) => r.esta_pendiente).length;
+  const totalPendientes = rows.filter((r) => r.estado_erp === "pendiente").length;
+  const totalSaldadas = rows.filter((r) => r.estado_erp === "saldada").length;
+  const totalSinMatch = rows.filter((r) => r.estado_erp === "sin_match").length;
 
   return (
     <Card className="!p-0 overflow-hidden">
@@ -14,8 +22,8 @@ export function InvoiceTable({ rows, limit }: { rows: RebateInvoiceRow[]; limit:
           Facturas y fuente
         </h2>
         <p className="text-stone" style={{ fontSize: 10 }}>
-          Últimas {rows.length} de {limit} máx. · {totalNc} notas crédito · {totalPendientes} pendientes en ERP · neto{" "}
-          {formatCompact(totalNeto)}
+          Últimas {rows.length} de {limit} máx. · {totalNc} notas crédito · {totalPendientes} pendientes · {totalSaldadas} saldadas
+          {totalSinMatch > 0 ? ` · ${totalSinMatch} sin match en ERP` : ""} · neto {formatCompact(totalNeto)}
         </p>
       </div>
       <div className="max-h-[420px] overflow-y-auto overflow-x-auto">
@@ -53,7 +61,9 @@ export function InvoiceTable({ rows, limit }: { rows: RebateInvoiceRow[]; limit:
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  {r.esta_pendiente ? <span className="text-orange" style={{ fontWeight: 600 }}>Pendiente</span> : <span className="text-stone">—</span>}
+                  <span className={ESTADO_LABELS[r.estado_erp].className} style={{ fontWeight: 600 }}>
+                    {ESTADO_LABELS[r.estado_erp].label}
+                  </span>
                 </td>
               </tr>
             ))}
