@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertCircle, CheckCircle2, HelpCircle, Inbox, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, HelpCircle, Inbox, Info, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
 import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-table";
@@ -15,6 +15,7 @@ import {
   getReconciliationKpisMercancia,
   getReconciliationDiffs,
   getHistoricalCutoffs,
+  type ConciliacionFilters,
 } from "@/lib/conciliacion-data";
 import { getDiscountAlerts } from "@/lib/discount-data";
 import { getExcludedInvoices } from "@/lib/exclusion-data";
@@ -37,6 +38,30 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const tab = sp.tab ?? "alertas";
   const soloMercancia = sp.todos !== "1";
+  const proveedorFiltro = sp.proveedor?.trim() ?? "";
+  const categoriaFiltro = sp.categoria ?? "todas";
+  const desdeFiltro = sp.desde ?? "";
+  const hastaFiltro = sp.hasta ?? "";
+  const filters: ConciliacionFilters = {
+    proveedor: proveedorFiltro || undefined,
+    categoria: categoriaFiltro,
+    desde: desdeFiltro || undefined,
+    hasta: hastaFiltro || undefined,
+  };
+  const hayFiltrosActivos = Boolean(proveedorFiltro || categoriaFiltro !== "todas" || desdeFiltro || hastaFiltro);
+
+  function filterHref(next: Record<string, string>) {
+    const params = new URLSearchParams({
+      tab,
+      ...(soloMercancia ? {} : { todos: "1" }),
+      ...(proveedorFiltro ? { proveedor: proveedorFiltro } : {}),
+      ...(categoriaFiltro !== "todas" ? { categoria: categoriaFiltro } : {}),
+      ...(desdeFiltro ? { desde: desdeFiltro } : {}),
+      ...(hastaFiltro ? { hasta: hastaFiltro } : {}),
+      ...next,
+    });
+    return `/conciliacion?${params.toString()}`;
+  }
 
   let dataError: string | null = null;
   let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0 };
@@ -56,14 +81,14 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   try {
     const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult] = await Promise.all([
       soloMercancia
-        ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1)
-        : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1),
+        ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters)
+        : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters),
       soloMercancia
-        ? getEmailWithoutErpMercancia(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1)
-        : getEmailWithoutErp(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1),
+        ? getEmailWithoutErpMercancia(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1, filters)
+        : getEmailWithoutErp(1, tab === "correo-sin-erp" ? PAGE_SIZE : 1, filters),
       soloMercancia
-        ? getErpWithoutEmailMercancia(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1)
-        : getErpWithoutEmail(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1),
+        ? getErpWithoutEmailMercancia(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1, filters)
+        : getErpWithoutEmail(1, tab === "erp-sin-correo" ? PAGE_SIZE : 1, filters),
       getDiscountAlerts(5),
       soloMercancia ? getReconciliationKpisMercancia() : getReconciliationKpis(),
       getReconciliationDiffs(),
@@ -277,7 +302,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
               {soloMercancia ? "Mostrando solo mercancía (recomendado)" : "Mostrando todos los proveedores"}
             </span>
             <Link
-              href={soloMercancia ? `/conciliacion?tab=${tab}&todos=1` : `/conciliacion?tab=${tab}`}
+              href={soloMercancia ? filterHref({ todos: "1" }) : filterHref({ todos: "" })}
               className="rounded-full border border-line px-2.5 py-1 font-semibold text-graphite"
               style={{ fontSize: 10 }}
             >
@@ -290,8 +315,74 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
             </p>
           )}
 
+          <Card>
+            <form method="GET" className="flex flex-wrap items-end gap-2.5">
+              <input type="hidden" name="tab" value={tab} />
+              {!soloMercancia && <input type="hidden" name="todos" value="1" />}
+              <div className="flex min-w-[180px] flex-1 flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Proveedor
+                </label>
+                <div className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1.5">
+                  <Search size={13} className="text-stone" />
+                  <input
+                    type="text"
+                    name="proveedor"
+                    defaultValue={proveedorFiltro}
+                    placeholder="Buscar por nombre…"
+                    className="w-full bg-transparent outline-none"
+                    style={{ fontSize: 11.5 }}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Categoría {soloMercancia && "(solo en \"Ver todos\")"}
+                </label>
+                <select
+                  name="categoria"
+                  defaultValue={categoriaFiltro}
+                  disabled={soloMercancia}
+                  className="rounded-md border border-line px-2 py-1.5 disabled:opacity-40"
+                  style={{ fontSize: 11.5 }}
+                >
+                  <option value="todas">Todas</option>
+                  <option value="estrategico">Estratégico</option>
+                  <option value="locativo">Locativo</option>
+                  <option value="institucional">Institucional</option>
+                  <option value="operativo">Operativo</option>
+                  <option value="esporadico">Esporádico</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Emisión desde
+                </label>
+                <input type="date" name="desde" defaultValue={desdeFiltro} className="rounded-md border border-line px-2 py-1.5" style={{ fontSize: 11.5 }} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-stone" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  Emisión hasta
+                </label>
+                <input type="date" name="hasta" defaultValue={hastaFiltro} className="rounded-md border border-line px-2 py-1.5" style={{ fontSize: 11.5 }} />
+              </div>
+              <button type="submit" className="rounded-md bg-red-deep px-4 py-2 text-white" style={{ fontSize: 11.5, fontWeight: 800 }}>
+                Filtrar
+              </button>
+              {hayFiltrosActivos && (
+                <Link
+                  href={filterHref({ proveedor: "", categoria: "todas", desde: "", hasta: "" })}
+                  className="rounded-md border border-line px-3 py-2 text-graphite"
+                  style={{ fontSize: 11.5, fontWeight: 700 }}
+                >
+                  Limpiar
+                </Link>
+              )}
+            </form>
+          </Card>
+
           <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
-            <Link href={soloMercancia ? "/conciliacion?tab=alertas" : "/conciliacion?tab=alertas&todos=1"}>
+            <Link href={filterHref({ tab: "alertas" })}>
               <Card style={{ borderColor: "var(--color-red)", boxShadow: "var(--shadow-glow-red)" }}>
                 <p className="text-red-deep" style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                   Accionable hoy
@@ -301,7 +392,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <p className="text-stone" style={{ fontSize: 10 }}>{formatCompact(alertsTotal)} en riesgo · vencen ≤5d</p>
               </Card>
             </Link>
-            <Link href={soloMercancia ? "/conciliacion?tab=correo-sin-erp" : "/conciliacion?tab=correo-sin-erp&todos=1"}>
+            <Link href={filterHref({ tab: "correo-sin-erp" })}>
               <Card style={{ borderColor: "var(--color-orange)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-orange)" }}>
                   Sin cargar al ERP
@@ -311,7 +402,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 <p className="text-stone" style={{ fontSize: 10 }}>XML recibido, falta contable</p>
               </Card>
             </Link>
-            <Link href={soloMercancia ? "/conciliacion?tab=erp-sin-correo" : "/conciliacion?tab=erp-sin-correo&todos=1"}>
+            <Link href={filterHref({ tab: "erp-sin-correo" })}>
               <Card style={{ borderColor: "var(--color-yellow)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-graphite)" }}>
                   XML pendiente
@@ -325,7 +416,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 </p>
               </Card>
             </Link>
-            <Link href={soloMercancia ? "/conciliacion?tab=conciliadas" : "/conciliacion?tab=conciliadas&todos=1"}>
+            <Link href={filterHref({ tab: "conciliadas" })}>
               <Card style={{ borderColor: "var(--color-success)" }}>
                 <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--color-success)" }}>
                   En orden
@@ -340,7 +431,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
           <div className="overflow-hidden rounded-lg border border-line bg-paper shadow-sm">
             <ConciliacionTabs
               active={tab}
-              todos={!soloMercancia}
+              makeHref={(k) => filterHref({ tab: k })}
               tabs={[
                 { key: "alertas", label: "Descuentos por perder", count: counts.alertas },
                 { key: "correo-sin-erp", label: "Correo sin ERP", count: counts.correoSinErp },

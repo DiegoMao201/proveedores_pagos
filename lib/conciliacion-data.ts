@@ -15,6 +15,14 @@ export interface ReconciledRow {
   estado_erp: "pendiente" | "saldada";
   diferencia_valor: number;
   diferencia_pct: number;
+  categoria_proveedor: string | null;
+}
+
+export interface ConciliacionFilters {
+  proveedor?: string;
+  categoria?: string;
+  desde?: string;
+  hasta?: string;
 }
 
 export interface ReconciliationKpis {
@@ -37,6 +45,7 @@ export interface EmailWithoutErpRow {
   valor_total_correo: number;
   fecha_emision_correo: string | null;
   fecha_recepcion_correo: string | null;
+  categoria_proveedor: string | null;
 }
 
 export interface ErpWithoutEmailRow {
@@ -47,6 +56,7 @@ export interface ErpWithoutEmailRow {
   fecha_vencimiento_erp: string | null;
   valor_total_erp: number;
   estado_erp: "pendiente" | "saldada";
+  categoria_proveedor: string | null;
 }
 
 export interface HistoricalCutoffs {
@@ -75,10 +85,24 @@ interface PagedResult<T> {
   total: number;
 }
 
-async function fetchPaged<T>(path: string, select: string, order: string, page: number, pageSize: number): Promise<PagedResult<T>> {
+async function fetchPaged<T>(
+  path: string,
+  select: string,
+  order: string,
+  page: number,
+  pageSize: number,
+  opts: { proveedorField?: string; fechaField?: string; filters?: ConciliacionFilters } = {}
+): Promise<PagedResult<T>> {
   const offset = (page - 1) * pageSize;
+  const f = opts.filters;
+  const parts = [`select=${select}`, `order=${order}`];
+  if (f?.proveedor && opts.proveedorField) parts.push(`${opts.proveedorField}=ilike.*${encodeURIComponent(f.proveedor)}*`);
+  if (f?.categoria && f.categoria !== "todas") parts.push(`categoria_proveedor=eq.${f.categoria}`);
+  if (f?.desde && opts.fechaField) parts.push(`${opts.fechaField}=gte.${f.desde}`);
+  if (f?.hasta && opts.fechaField) parts.push(`${opts.fechaField}=lte.${f.hasta}`);
+
   const res = await postgrestFetch(
-    `${path}?select=${select}&order=${order}`,
+    `${path}?${parts.join("&")}`,
     {
       headers: {
         Prefer: "count=exact",
@@ -95,39 +119,61 @@ async function fetchPaged<T>(path: string, select: string, order: string, page: 
   return { rows, total };
 }
 
-export async function getReconciled(page: number, pageSize: number) {
-  return fetchPaged<ReconciledRow>("/v_reconciled", "*", "diferencia_valor.desc", page, pageSize);
+export async function getReconciled(page: number, pageSize: number, filters?: ConciliacionFilters) {
+  return fetchPaged<ReconciledRow>("/v_reconciled", "*", "diferencia_valor.desc", page, pageSize, {
+    proveedorField: "nombre_display",
+    fechaField: "fecha_emision_correo",
+    filters,
+  });
 }
 
-export async function getReconciledMercancia(page: number, pageSize: number) {
-  return fetchPaged<ReconciledRow>("/v_reconciliation_mercancia", "*", "diferencia_valor.desc", page, pageSize);
+export async function getReconciledMercancia(page: number, pageSize: number, filters?: ConciliacionFilters) {
+  return fetchPaged<ReconciledRow>("/v_reconciliation_mercancia", "*", "diferencia_valor.desc", page, pageSize, {
+    proveedorField: "nombre_display",
+    fechaField: "fecha_emision_correo",
+    filters: filters ? { proveedor: filters.proveedor, desde: filters.desde, hasta: filters.hasta } : undefined,
+  });
 }
 
-export async function getEmailWithoutErp(page: number, pageSize: number) {
+export async function getEmailWithoutErp(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp",
-    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo",
+    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,categoria_proveedor",
     "fecha_recepcion_correo.desc",
     page,
-    pageSize
+    pageSize,
+    { proveedorField: "proveedor_correo", fechaField: "fecha_emision_correo", filters }
   );
 }
 
-export async function getErpWithoutEmail(page: number, pageSize: number) {
-  return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email", "*", "fecha_vencimiento_erp.asc", page, pageSize);
+export async function getErpWithoutEmail(page: number, pageSize: number, filters?: ConciliacionFilters) {
+  return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email", "*", "fecha_vencimiento_erp.asc", page, pageSize, {
+    proveedorField: "nombre_proveedor_erp",
+    fechaField: "fecha_emision_erp",
+    filters,
+  });
 }
 
-export async function getErpWithoutEmailMercancia(page: number, pageSize: number) {
-  return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email_mercancia", "*", "fecha_vencimiento_erp.asc", page, pageSize);
+export async function getErpWithoutEmailMercancia(page: number, pageSize: number, filters?: ConciliacionFilters) {
+  return fetchPaged<ErpWithoutEmailRow>("/v_erp_without_email_mercancia", "*", "fecha_vencimiento_erp.asc", page, pageSize, {
+    proveedorField: "nombre_proveedor_erp",
+    fechaField: "fecha_emision_erp",
+    filters: filters ? { proveedor: filters.proveedor, desde: filters.desde, hasta: filters.hasta } : undefined,
+  });
 }
 
-export async function getEmailWithoutErpMercancia(page: number, pageSize: number) {
+export async function getEmailWithoutErpMercancia(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp_mercancia",
     "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo",
     "fecha_recepcion_correo.desc",
     page,
-    pageSize
+    pageSize,
+    {
+      proveedorField: "proveedor_correo",
+      fechaField: "fecha_emision_correo",
+      filters: filters ? { proveedor: filters.proveedor, desde: filters.desde, hasta: filters.hasta } : undefined,
+    }
   );
 }
 
