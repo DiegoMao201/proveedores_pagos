@@ -85,3 +85,21 @@ export async function getProviderList(q?: string, categoria?: string, estadoBanc
   if (!res.ok) throw new Error(`PostgREST /v_provider_list -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }
+
+export interface UnknownProviderRow {
+  nombre_proveedor_erp: string;
+  nombre_normalizado_erp: string;
+  docs_en_cartera: number;
+  facturas: number;
+  ncs: number;
+  pendiente_total: number;
+  primera_fecha: string | null;
+  ultima_fecha: string | null;
+  ultima_sync: string | null;
+}
+
+export async function getUnknownProviders(): Promise<UnknownProviderRow[]> {
+  const res = await postgrestFetch("/v_unknown_providers_in_cartera?select=*", {}, "treasury");
+  if (!res.ok) throw new Error(`PostgREST /v_unknown_providers_in_cartera -> HTTP ${res.status}: ${await res.text()}`);
+  return res.json();
+}

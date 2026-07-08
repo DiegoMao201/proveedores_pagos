@@ -83,6 +83,57 @@ export async function createProvider(data: {
   return rows[0];
 }
 
+export async function quickOnboardProvider(data: {
+  nombreErp: string;
+  nombre: string;
+  categoria_proveedor: string;
+  nif: string | null;
+  es_autoretenedor: boolean;
+}): Promise<{ id: number }> {
+  const userId = await currentUserId();
+  const nombreNormalizado = normalizeProviderName(data.nombre);
+
+  const res = await postgrestFetch(
+    "/provider",
+    {
+      method: "POST",
+      headers: { Prefer: "return=representation" },
+      body: JSON.stringify({
+        nombre: data.nombre,
+        nombre_normalizado: nombreNormalizado,
+        categoria_proveedor: data.categoria_proveedor,
+        nif: data.nif,
+        es_autoretenedor: data.es_autoretenedor,
+        activo: true,
+        created_by: userId,
+        updated_by: userId,
+      }),
+    },
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST POST /provider -> HTTP ${res.status}: ${await res.text()}`);
+  const rows = (await res.json()) as { id: number }[];
+  const providerId = rows[0].id;
+
+  const aliasNorm = normalizeProviderName(data.nombreErp);
+  if (aliasNorm && aliasNorm !== nombreNormalizado) {
+    const aliasRes = await postgrestFetch(
+      "/provider_alias",
+      {
+        method: "POST",
+        headers: { Prefer: "resolution=ignore-duplicates" },
+        body: JSON.stringify({ provider_id: providerId, alias: data.nombreErp, alias_norm: aliasNorm, created_by: userId }),
+      },
+      "providers"
+    );
+    if (!aliasRes.ok) throw new Error(`PostgREST POST /provider_alias -> HTTP ${aliasRes.status}: ${await aliasRes.text()}`);
+  }
+
+  revalidatePath("/proveedores");
+  revalidatePath("/");
+  return { id: providerId };
+}
+
 export interface ProviderImportRow {
   rowNumber: number;
   nombre: string;

@@ -7,7 +7,8 @@ import { BankStatusBadge } from "@/components/providers/bank-status-badge";
 import { NewProviderModal } from "@/components/providers/new-provider-modal";
 import { ImportBancolombiaModal } from "@/components/providers/import-bancolombia-modal";
 import { ImportProvidersModal } from "@/components/providers/import-providers-modal";
-import { getProviderList } from "@/lib/bank-account-data";
+import { UnknownProvidersSection } from "@/components/providers/unknown-providers-section";
+import { getProviderList, getUnknownProviders } from "@/lib/bank-account-data";
 import { humanizeProviderName } from "@/lib/format";
 
 const CATEGORIA_LABEL: Record<string, string> = {
@@ -29,11 +30,18 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
 
   let providers: Awaited<ReturnType<typeof getProviderList>> = [];
   let dataError: string | null = null;
+  let unknownProviders: Awaited<ReturnType<typeof getUnknownProviders>> = [];
 
   try {
     providers = await getProviderList(sp.q, sp.categoria_proveedor, sp.estado_bancario);
   } catch (error) {
     dataError = error instanceof Error ? error.message : "Error desconocido";
+  }
+
+  try {
+    unknownProviders = await getUnknownProviders();
+  } catch {
+    unknownProviders = [];
   }
 
   return (
@@ -53,6 +61,8 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
           <NewProviderModal />
         </div>
       </div>
+
+      <UnknownProvidersSection rows={unknownProviders} />
 
       {dataError ? (
         <Card className="border-red-deep bg-cream">

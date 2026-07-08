@@ -24,11 +24,13 @@ import {
 } from "@/lib/dashboard-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
 import { getRebateDashboardSummary, type RebateSummary } from "@/lib/rebate-data";
+import { getUnknownProviders, type UnknownProviderRow } from "@/lib/bank-account-data";
 import { UrgentInvoicesCard } from "@/components/dashboard/urgent-invoices-card";
 import { TopProvidersCard } from "@/components/dashboard/top-providers-card";
 import { PendingDiscountsCard } from "@/components/dashboard/pending-discounts-card";
 import { RetentionsReviewCard } from "@/components/dashboard/retentions-review-card";
 import { SystemHealthCard } from "@/components/dashboard/system-health-card";
+import { UnknownProvidersAlert } from "@/components/dashboard/unknown-providers-alert";
 import type { AgingBucketKey } from "@/components/ui/aging-swatch";
 import type { HeatmapDay } from "@/components/dashboard/payment-calendar-heatmap";
 import { formatCompact, formatTodayEs } from "@/lib/format";
@@ -95,14 +97,16 @@ export default async function DashboardPage() {
   let pendingDiscounts: PendingDiscountRow[] = [];
   let retentionsToReview: RetentionToReviewRow[] = [];
   let systemHealth: SystemHealthRow[] = [];
+  let unknownProviders: UnknownProviderRow[] = [];
 
   try {
-    [urgentInvoices, topProviders, pendingDiscounts, retentionsToReview, systemHealth] = await Promise.all([
+    [urgentInvoices, topProviders, pendingDiscounts, retentionsToReview, systemHealth, unknownProviders] = await Promise.all([
       canSeeOperativeActions ? getUrgentInvoices() : Promise.resolve([]),
       getTopProvidersByVolume(),
       isContabilidad ? getPendingDiscounts() : Promise.resolve([]),
       isContabilidad ? getRetentionsToReview() : Promise.resolve([]),
       isAdmin ? getSystemHealth() : Promise.resolve([]),
+      isAdmin ? getUnknownProviders() : Promise.resolve([]),
     ]);
   } catch {
     // Estas cards son informativas -- si fallan, no rompen el resto de /inicio.
@@ -200,6 +204,8 @@ export default async function DashboardPage() {
           </Card>
         </>
       )}
+
+      {isAdmin && <UnknownProvidersAlert rows={unknownProviders} />}
 
       <div className="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
         {canSeeOperativeActions && <UrgentInvoicesCard invoices={urgentInvoices} />}
