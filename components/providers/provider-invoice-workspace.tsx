@@ -456,6 +456,7 @@ export function ProviderInvoiceWorkspace({
                                   numFactura: r.num_factura,
                                   proveedor: providerNombre,
                                   valor: r.valor_total_correo,
+                                  esNotaCredito: esNC,
                                 },
                               ])
                             }

@@ -63,6 +63,7 @@ export async function excludeInvoice(
 
   revalidatePath("/conciliacion");
   revalidatePath("/proveedores/[id]", "page");
+  revalidatePath("/notas-credito");
   return { ok: true };
 }
 
@@ -89,6 +90,7 @@ export async function excludeInvoicesBatch(
 
   revalidatePath("/conciliacion");
   revalidatePath("/proveedores/[id]", "page");
+  revalidatePath("/notas-credito");
   return { ok: true, exitosas: result.exitosas };
 }
 
@@ -118,5 +120,6 @@ export async function reactivateInvoiceExclusion(
 
   revalidatePath("/conciliacion");
   revalidatePath("/proveedores/[id]", "page");
+  revalidatePath("/notas-credito");
   return { ok: true };
 }

@@ -50,8 +50,23 @@ export function ExcluidasTab({ rows }: { rows: ExcludedInvoiceRow[] }) {
                 <td className="px-4 py-3 font-semibold text-ink">
                   {row.nombre_proveedor ?? humanizeProviderName(row.proveedor_norm)}
                 </td>
-                <td className="num px-4 py-3">{row.num_factura ?? "—"}</td>
-                <td className="num px-4 py-3 text-right">{row.valor != null ? formatCurrency(row.valor) : "—"}</td>
+                <td className="num px-4 py-3">
+                  {row.es_nota_credito && (
+                    <span
+                      className="mr-1 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                      style={{ fontSize: 8.5 }}
+                    >
+                      NC
+                    </span>
+                  )}
+                  {row.num_factura ?? "—"}
+                </td>
+                <td
+                  className="num px-4 py-3 text-right"
+                  style={row.es_nota_credito ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
+                >
+                  {row.valor != null ? `${row.es_nota_credito ? "−" : ""}${formatCurrency(Math.abs(row.valor))}` : "—"}
+                </td>
                 <td className="date px-4 py-3">{row.fecha_emision ? formatDateEs(row.fecha_emision) : "—"}</td>
                 <td className="px-4 py-3 text-stone" style={{ maxWidth: 260 }}>
                   {row.motivo ?? "—"}

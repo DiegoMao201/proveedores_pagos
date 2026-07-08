@@ -14,6 +14,7 @@ export interface ExclusionCandidate {
   numFactura: string;
   proveedor: string;
   valor: number;
+  esNotaCredito?: boolean;
 }
 
 export function ExclusionModal({
@@ -87,9 +88,23 @@ export function ExclusionModal({
             {candidates.slice(0, 5).map((c) => (
               <div key={c.invoiceKey} className="flex justify-between border-b border-line px-2.5 py-1.5 last:border-0">
                 <span className="text-ink">
+                  {c.esNotaCredito && (
+                    <span
+                      className="mr-1 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                      style={{ fontSize: 8.5 }}
+                    >
+                      NC
+                    </span>
+                  )}
                   {c.proveedor} · {c.numFactura}
                 </span>
-                <span className="num text-stone">{formatFull(c.valor)}</span>
+                <span
+                  className={c.esNotaCredito ? "num" : "num text-stone"}
+                  style={c.esNotaCredito ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
+                >
+                  {c.esNotaCredito ? "−" : ""}
+                  {formatFull(Math.abs(c.valor))}
+                </span>
               </div>
             ))}
             {candidates.length > 5 && (

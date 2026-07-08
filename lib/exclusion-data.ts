@@ -14,6 +14,7 @@ export interface ExcludedInvoiceRow {
   valor: number | null;
   fecha_emision: string | null;
   fuente: "ambos" | "solo_correo" | "solo_erp" | "ninguno";
+  es_nota_credito: boolean;
 }
 
 export async function getExcludedInvoices(): Promise<ExcludedInvoiceRow[]> {
