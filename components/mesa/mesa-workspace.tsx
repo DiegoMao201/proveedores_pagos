@@ -75,9 +75,9 @@ export function MesaDePagosWorkspace({
 }) {
   const [invoices, setInvoices] = useState(initialInvoices);
   const [fechaPago, setFechaPago] = useState(tomorrowIso());
-  const [categoria, setCategoria] = useState<CategoriaFiltro>("estrategico");
+  const [categoria, setCategoria] = useState<CategoriaFiltro>("todos");
   const [proveedorFiltro, setProveedorFiltro] = useState("");
-  const [urgencia, setUrgencia] = useState<UrgenciaFiltro>("descuento");
+  const [urgencia, setUrgencia] = useState<UrgenciaFiltro>("todas");
   const [orden, setOrden] = useState<OrdenFiltro>("descuento");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
