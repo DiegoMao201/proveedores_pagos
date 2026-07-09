@@ -62,8 +62,6 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <UnknownProvidersSection rows={unknownProviders} />
-
       {dataError ? (
         <Card className="border-red-deep bg-cream">
           <p className="flex items-center gap-2 text-sm font-semibold text-red-deep">
@@ -136,6 +134,8 @@ export default async function ProveedoresPage({ searchParams }: PageProps) {
           )}
         </div>
       )}
+
+      <UnknownProvidersSection rows={unknownProviders} />
     </div>
   );
 }
