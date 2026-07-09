@@ -6,6 +6,7 @@ import { getBatchByCode } from "@/lib/batch-data";
 import { getBatchProviderBreakdown, getBatchItemsDetail } from "@/lib/lotes-data";
 import { getProviderContactsForProviders } from "@/lib/provider-contact-data";
 import { renderPaymentNotificationTemplate } from "@/lib/email-templates/payment-notification";
+import { renderBatchSummaryTemplate } from "@/lib/email-templates/batch-summary";
 import { formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 export const runtime = "nodejs";
@@ -76,7 +77,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
     }
 
     const contactosExtra = contacts.filter((c) => c.provider_id === provider.proveedor_id).map((c) => c.email);
-    const ccList = modoPrueba ? undefined : ["gerencia@ferreinox.co", ...contactosExtra];
+    const ccList = modoPrueba ? undefined : contactosExtra.length > 0 ? contactosExtra : undefined;
 
     const subjectPrefix = modoPrueba ? "[PRUEBA] " : "";
     const subject = `${subjectPrefix}Ferreinox — Notificación de pago realizado — ${formatFull(provider.total_neto)}`;
@@ -114,6 +115,60 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
     } catch (err) {
       results.push({ proveedor: provider.proveedor_nombre, estado: "error", error: err instanceof Error ? err.message : "Error desconocido" });
     }
+  }
+
+  // Gerencia ya no recibe copia de cada notificación individual -- en vez de
+  // eso recibe un único correo con el resumen consolidado de todo el lote.
+  const gerenciaHtml = renderBatchSummaryTemplate({
+    codigoLote: batch.codigo_lote,
+    fechaAplicacion: formatDateEs(batch.fecha_pago_programada),
+    bancoDestino: "Bancolombia",
+    proveedores: breakdown.map((b) => ({
+      proveedorNombre: b.proveedor_nombre,
+      numDocumentos: b.num_documentos,
+      valorBruto: b.total_bruto_facturas,
+      descuento: b.total_descuento,
+      retenciones: b.total_retenciones,
+      valorNeto: b.total_neto,
+    })),
+    totalBruto: breakdown.reduce((s, b) => s + b.total_bruto_facturas, 0),
+    totalDescuento: breakdown.reduce((s, b) => s + b.total_descuento, 0),
+    totalRetenciones: breakdown.reduce((s, b) => s + b.total_retenciones, 0),
+    totalNeto: breakdown.reduce((s, b) => s + b.total_neto, 0),
+  });
+  const gerenciaSubjectPrefix = modoPrueba ? "[PRUEBA] " : "";
+  const gerenciaSubject = `${gerenciaSubjectPrefix}Ferreinox — Lote ${batch.codigo_lote} pagado — ${formatFull(breakdown.reduce((s, b) => s + b.total_neto, 0))}`;
+  const gerenciaDestinatario = modoPrueba ? testEmail : "gerencia@ferreinox.co";
+
+  try {
+    const [gerenciaResponse] = await sgMail.send({
+      to: gerenciaDestinatario,
+      from: { email: fromEmail, name: fromName },
+      subject: gerenciaSubject,
+      html: gerenciaHtml,
+    });
+    const gerenciaMsgId = gerenciaResponse.headers["x-message-id"] as string | undefined;
+    await postgrestFetch(
+      "/rpc/log_payment_notification",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          p_batch_id: batch.id,
+          p_proveedor_id: null,
+          p_destinatario_to: gerenciaDestinatario,
+          p_destinatario_cc: null,
+          p_subject: gerenciaSubject,
+          p_body_html: gerenciaHtml,
+          p_sendgrid_msg_id: gerenciaMsgId ?? null,
+          p_modo_prueba: modoPrueba,
+          p_user_id: userId,
+        }),
+      },
+      "treasury"
+    );
+    results.push({ proveedor: "Gerencia (resumen consolidado)", estado: "enviado" });
+  } catch (err) {
+    results.push({ proveedor: "Gerencia (resumen consolidado)", estado: "error", error: err instanceof Error ? err.message : "Error desconocido" });
   }
 
   if (!modoPrueba) {
