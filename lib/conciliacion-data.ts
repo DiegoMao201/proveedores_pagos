@@ -43,6 +43,7 @@ export interface EmailWithoutErpRow {
   invoice_key: string;
   proveedor_correo: string | null;
   num_factura: string;
+  tipo_documento_correo: string | null;
   valor_total_correo: number;
   fecha_emision_correo: string | null;
   fecha_recepcion_correo: string | null;
@@ -148,7 +149,7 @@ export async function getReconciledMercancia(page: number, pageSize: number, fil
 export async function getEmailWithoutErp(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp",
-    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,categoria_proveedor,nombre_provider",
+    "invoice_key,proveedor_correo,num_factura,tipo_documento_correo,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,categoria_proveedor,nombre_provider",
     "fecha_recepcion_correo.desc",
     page,
     pageSize,
@@ -175,7 +176,7 @@ export async function getErpWithoutEmailMercancia(page: number, pageSize: number
 export async function getEmailWithoutErpMercancia(page: number, pageSize: number, filters?: ConciliacionFilters) {
   return fetchPaged<EmailWithoutErpRow>(
     "/v_email_without_erp_mercancia",
-    "invoice_key,proveedor_correo,num_factura,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,nombre_provider",
+    "invoice_key,proveedor_correo,num_factura,tipo_documento_correo,valor_total_correo,fecha_emision_correo,fecha_recepcion_correo,nombre_provider",
     "fecha_recepcion_correo.desc",
     page,
     pageSize,

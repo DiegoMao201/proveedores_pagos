@@ -19,11 +19,14 @@ export function CorreoSinErpTable({ rows }: { rows: EmailWithoutErpRow[] }) {
     });
   }
 
+  const esNC = (r: EmailWithoutErpRow) => r.tipo_documento_correo === "NOTA_CREDITO" || r.num_factura.toUpperCase().startsWith("NC-");
+
   const candidateFor = (r: EmailWithoutErpRow): ExclusionCandidate => ({
     invoiceKey: r.invoice_key,
     numFactura: r.num_factura,
     proveedor: humanizeProviderName(r.proveedor_correo ?? ""),
     valor: r.valor_total_correo,
+    esNotaCredito: esNC(r),
   });
 
   const selectedRows = useMemo(() => rows.filter((r) => selected.has(r.invoice_key)), [rows, selected]);
@@ -69,33 +72,52 @@ export function CorreoSinErpTable({ rows }: { rows: EmailWithoutErpRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-              <td className="px-3 py-3">
-                <input
-                  type="checkbox"
-                  checked={selected.has(row.invoice_key)}
-                  onChange={() => toggle(row.invoice_key)}
-                  style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }}
-                />
-              </td>
-              <td className="px-4 py-3 font-semibold text-ink">{humanizeProviderName(row.proveedor_correo ?? "")}</td>
-              <td className="num px-4 py-3">{row.num_factura}</td>
-              <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>
-              <td className="date px-4 py-3">{row.fecha_emision_correo ? formatDateEs(row.fecha_emision_correo) : "—"}</td>
-              <td className="date px-6 py-3">{row.fecha_recepcion_correo ? formatDateEs(row.fecha_recepcion_correo) : "—"}</td>
-              <td className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => setModalCandidates([candidateFor(row)])}
-                  className="flex items-center gap-1 text-stone hover:text-red-deep"
-                  style={{ fontSize: 10, fontWeight: 700 }}
+          {rows.map((row) => {
+            const nc = esNC(row);
+            return (
+              <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
+                <td className="px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(row.invoice_key)}
+                    onChange={() => toggle(row.invoice_key)}
+                    style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }}
+                  />
+                </td>
+                <td className="px-4 py-3 font-semibold text-ink">{humanizeProviderName(row.proveedor_correo ?? "")}</td>
+                <td className="num px-4 py-3">
+                  {nc && (
+                    <span
+                      className="mr-1.5 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                      style={{ fontSize: 8.5 }}
+                    >
+                      NC
+                    </span>
+                  )}
+                  {row.num_factura}
+                </td>
+                <td
+                  className="num px-4 py-3 text-right"
+                  style={nc ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
                 >
-                  <X size={10} /> Excluir
-                </button>
-              </td>
-            </tr>
-          ))}
+                  {nc ? "−" : ""}
+                  {formatCurrency(Math.abs(row.valor_total_correo))}
+                </td>
+                <td className="date px-4 py-3">{row.fecha_emision_correo ? formatDateEs(row.fecha_emision_correo) : "—"}</td>
+                <td className="date px-6 py-3">{row.fecha_recepcion_correo ? formatDateEs(row.fecha_recepcion_correo) : "—"}</td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => setModalCandidates([candidateFor(row)])}
+                    className="flex items-center gap-1 text-stone hover:text-red-deep"
+                    style={{ fontSize: 10, fontWeight: 700 }}
+                  >
+                    <X size={10} /> Excluir
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 

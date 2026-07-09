@@ -132,12 +132,25 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 return (
                   <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
                     <td className="px-6 py-3 font-semibold text-ink">
+                      {row.es_nota_credito && (
+                        <span
+                          className="mr-1.5 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                          style={{ fontSize: 8.5 }}
+                        >
+                          NC
+                        </span>
+                      )}
                       {humanizeProviderName(row.nombre_display ?? "")}
-                      {row.es_nota_credito && <span className="text-stone"> · Nota crédito</span>}
                     </td>
                     <td className="num px-4 py-3">{row.num_factura_correo}</td>
                     <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
-                    <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_correo)}</td>
+                    <td
+                      className="num px-4 py-3 text-right"
+                      style={row.es_nota_credito ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
+                    >
+                      {row.es_nota_credito ? "−" : ""}
+                      {formatCurrency(Math.abs(row.valor_total_correo))}
+                    </td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_erp)}</td>
                     <td className="num px-4 py-3 text-right">{formatCurrency(row.diferencia_valor)}</td>
                     <td className="px-6 py-3">
@@ -177,15 +190,34 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
               </tr>
             </thead>
             <tbody>
-              {erpWithoutEmail.rows.map((row) => (
-                <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                  <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
-                  <td className="num px-4 py-3">{row.num_factura}</td>
-                  <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
-                  <td className="num px-4 py-3 text-right">{formatCurrency(row.valor_total_erp)}</td>
-                  <td className="date px-6 py-3">{row.fecha_vencimiento_erp ? formatDateEs(row.fecha_vencimiento_erp) : "—"}</td>
-                </tr>
-              ))}
+              {erpWithoutEmail.rows.map((row) => {
+                const nc = row.valor_total_erp < 0;
+                return (
+                  <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
+                    <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
+                    <td className="num px-4 py-3">
+                      {nc && (
+                        <span
+                          className="mr-1.5 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
+                          style={{ fontSize: 8.5 }}
+                        >
+                          NC
+                        </span>
+                      )}
+                      {row.num_factura}
+                    </td>
+                    <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
+                    <td
+                      className="num px-4 py-3 text-right"
+                      style={nc ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
+                    >
+                      {nc ? "−" : ""}
+                      {formatCurrency(Math.abs(row.valor_total_erp))}
+                    </td>
+                    <td className="date px-6 py-3">{row.fecha_vencimiento_erp ? formatDateEs(row.fecha_vencimiento_erp) : "—"}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {erpWithoutEmail.rows.length === 0 && (
