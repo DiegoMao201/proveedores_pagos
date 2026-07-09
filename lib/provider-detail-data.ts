@@ -91,34 +91,28 @@ export async function getProviderById(id: number): Promise<ProviderRow | null> {
 
 export interface ProviderInvoiceSummary {
   facturacion12m: number;
-  porPagarTotal: number;
-  porPagarCount: number;
 }
 
-export async function getProviderInvoiceSummary(nombreNormalizado: string, nombreErpLike: string): Promise<ProviderInvoiceSummary> {
+// "Por pagar" (total y conteo) NO se calcula aqui -- se deriva directamente
+// de invoicesWithCalc (treasury.v_active_invoices) en la pagina, para que el
+// KPI del encabezado siempre coincida exactamente con lo que muestra la
+// pestaña "Por pagar". Antes esta funcion escaneaba erp_pending crudo, sin
+// las reglas de categoria/exclusion/lote-activo de v_active_invoices, y
+// podia mostrar un total > 0 para proveedores (ej. categoria "operativo")
+// cuya factura nunca aparece como pagable en ninguna vista.
+export async function getProviderInvoiceSummary(nombreNormalizado: string): Promise<ProviderInvoiceSummary> {
   const since = new Date();
   since.setFullYear(since.getFullYear() - 1);
   const sinceStr = since.toISOString().slice(0, 10);
 
-  const [emailRes, pendingRes] = await Promise.all([
-    postgrestFetch(
-      `/email_invoice?proveedor_norm=eq.${nombreNormalizado}&fecha_emision_correo=gte.${sinceStr}&select=valor_total_correo`,
-      {},
-      "treasury"
-    ),
-    postgrestFetch(
-      `/erp_pending?nombre_proveedor_erp=ilike.*${encodeURIComponent(nombreErpLike)}*&select=valor_total_erp`,
-      {},
-      "treasury"
-    ),
-  ]);
-
+  const emailRes = await postgrestFetch(
+    `/email_invoice?proveedor_norm=eq.${nombreNormalizado}&fecha_emision_correo=gte.${sinceStr}&select=valor_total_correo`,
+    {},
+    "treasury"
+  );
   const emailRows = emailRes.ok ? ((await emailRes.json()) as { valor_total_correo: number }[]) : [];
-  const pendingRows = pendingRes.ok ? ((await pendingRes.json()) as { valor_total_erp: number }[]) : [];
 
   return {
     facturacion12m: emailRows.reduce((sum, r) => sum + Number(r.valor_total_correo ?? 0), 0),
-    porPagarTotal: pendingRows.reduce((sum, r) => sum + Number(r.valor_total_erp ?? 0), 0),
-    porPagarCount: pendingRows.length,
   };
 }

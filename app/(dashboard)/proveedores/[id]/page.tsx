@@ -99,7 +99,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     getInactiveDiscountRules(provider.id),
     getActiveRetentionRules(provider.id),
     getInactiveRetentionRules(provider.id),
-    getProviderInvoiceSummary(provider.nombre_normalizado, firstWord),
+    getProviderInvoiceSummary(provider.nombre_normalizado),
     getCapturableDiscountTotal(),
     getProviderFull(provider.id),
     getBankAccounts(provider.id),
@@ -185,7 +185,10 @@ export default async function ProviderDetailPage({ params }: PageProps) {
       />
 
       <ProviderKPIGrid
-        porPagar={{ total: invoiceSummary.porPagarTotal, count: invoiceSummary.porPagarCount }}
+        porPagar={{
+          total: invoicesWithCalc.reduce((s, i) => s + i.valor_bruto, 0),
+          count: invoicesWithCalc.length,
+        }}
         porConciliar={{ count: reconciling.length, total: reconciling.reduce((s, r) => s + r.valor_total_correo, 0) }}
         capturable={providerDiscounts}
         rebateLabel="—"
