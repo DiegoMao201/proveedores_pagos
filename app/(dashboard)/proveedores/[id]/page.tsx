@@ -9,6 +9,7 @@ import { SectionTabs } from "@/components/rebate/section-tabs";
 import { EditableBasicsForm } from "@/components/providers/editable-basics-form";
 import { EditableConditionsForm } from "@/components/providers/editable-conditions-form";
 import { EditableContactsForm } from "@/components/providers/editable-contacts-form";
+import { ProviderContactsTab } from "@/components/providers/provider-contacts-tab";
 import { BankAccountsTab } from "@/components/providers/bank-accounts-tab";
 import { ProviderHistoryTab } from "@/components/providers/provider-history-tab";
 import { DiscountRulesTab } from "@/components/providers/discount-rules-tab";
@@ -24,6 +25,7 @@ import {
 import { getActiveDiscountRulesFull, getInactiveDiscountRules } from "@/lib/discount-rule-data";
 import { getActiveRetentionRules, getInactiveRetentionRules } from "@/lib/retention-rule-data";
 import { getBankAccounts, getBankCatalog } from "@/lib/bank-account-data";
+import { getProviderContacts } from "@/lib/provider-contact-data";
 import { getCapturableDiscountTotal } from "@/lib/discount-data";
 import { getProviderInvoicesWithCalc, getOwnBankAccounts, getProviderReconciling, getProviderPaid, getDataFreshness } from "@/lib/batch-data";
 
@@ -87,6 +89,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     providerFull,
     bankAccounts,
     bankCatalog,
+    contacts,
     history,
     invoicesWithCalc,
     ownAccounts,
@@ -104,6 +107,7 @@ export default async function ProviderDetailPage({ params }: PageProps) {
     getProviderFull(provider.id),
     getBankAccounts(provider.id),
     getBankCatalog(),
+    getProviderContacts(provider.id),
     getProviderHistory(provider.id, 20, 0),
     getProviderInvoicesWithCalc(provider.id, fechaPago),
     getOwnBankAccounts(),
@@ -127,7 +131,16 @@ export default async function ProviderDetailPage({ params }: PageProps) {
   const tabs = [
     { key: "basicos", label: "Datos básicos", content: <EditableBasicsForm provider={providerFull} canEdit={canEdit} /> },
     { key: "condiciones", label: "Condiciones comerciales", content: <EditableConditionsForm provider={providerFull} canEdit={canEdit} /> },
-    { key: "contactos", label: "Contactos y correos", content: <EditableContactsForm provider={providerFull} canEdit={canEdit} /> },
+    {
+      key: "contactos",
+      label: "Contactos y correos",
+      content: (
+        <div className="flex flex-col gap-3">
+          <EditableContactsForm provider={providerFull} canEdit={canEdit} />
+          <ProviderContactsTab providerId={provider.id} contacts={contacts} canEdit={canEdit} />
+        </div>
+      ),
+    },
     {
       key: "cuentas",
       label: "Cuentas bancarias",

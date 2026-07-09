@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { postgrestFetch } from "@/lib/postgrest";
 import { getBatchByCode } from "@/lib/batch-data";
 import { getBatchProviderBreakdown, getBatchItemsDetail } from "@/lib/lotes-data";
+import { getProviderContactsForProviders } from "@/lib/provider-contact-data";
 import { renderPaymentNotificationTemplate } from "@/lib/email-templates/payment-notification";
 import { formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
 
@@ -35,9 +36,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
   const fromName = process.env.SENDGRID_FROM_NAME ?? "Ferreinox — Tesorería";
   const testEmail = "compras@ferreinox.co";
 
-  const [allBreakdown, allItems] = await Promise.all([
+  const [allBreakdown, allItems, contacts] = await Promise.all([
     getBatchProviderBreakdown(batch.id),
     getBatchItemsDetail(batch.id),
+    getProviderContactsForProviders(proveedorIds),
   ]);
   const breakdown = allBreakdown.filter((b) => proveedorIds.includes(b.proveedor_id));
 
@@ -73,13 +75,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       continue;
     }
 
+    const contactosExtra = contacts.filter((c) => c.provider_id === provider.proveedor_id).map((c) => c.email);
+    const ccList = modoPrueba ? undefined : ["gerencia@ferreinox.co", ...contactosExtra];
+
     const subjectPrefix = modoPrueba ? "[PRUEBA] " : "";
     const subject = `${subjectPrefix}Ferreinox — Notificación de pago realizado — ${formatFull(provider.total_neto)}`;
 
     try {
       const [response] = await sgMail.send({
         to: destinatario,
-        cc: modoPrueba ? undefined : "gerencia@ferreinox.co",
+        cc: ccList,
         from: { email: fromEmail, name: fromName },
         subject,
         html,
@@ -94,7 +99,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
             p_batch_id: batch.id,
             p_proveedor_id: provider.proveedor_id,
             p_destinatario_to: destinatario,
-            p_destinatario_cc: modoPrueba ? null : "gerencia@ferreinox.co",
+            p_destinatario_cc: ccList?.join(", ") ?? null,
             p_subject: subject,
             p_body_html: html,
             p_sendgrid_msg_id: sendgridMsgId ?? null,

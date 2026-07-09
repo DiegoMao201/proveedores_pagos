@@ -305,3 +305,40 @@ export async function importBancolombiaAccounts(rows: BancolombiaImportRow[]): P
   revalidatePath("/proveedores");
   return { imported: rows.length, total };
 }
+
+export interface ProviderContactInput {
+  nombre: string | null;
+  email: string;
+  notas: string | null;
+}
+
+export async function addProviderContact(providerId: number, data: ProviderContactInput) {
+  const userId = await currentUserId();
+  const res = await postgrestFetch(
+    "/provider_contact",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        provider_id: providerId,
+        ...data,
+        activo: true,
+        created_by: userId,
+        updated_by: userId,
+      }),
+    },
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST POST /provider_contact -> HTTP ${res.status}: ${await res.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+}
+
+export async function deactivateProviderContact(id: number, providerId: number) {
+  const userId = await currentUserId();
+  const res = await postgrestFetch(
+    `/provider_contact?id=eq.${id}`,
+    { method: "PATCH", body: JSON.stringify({ activo: false, updated_by: userId }) },
+    "providers"
+  );
+  if (!res.ok) throw new Error(`PostgREST PATCH /provider_contact -> HTTP ${res.status}: ${await res.text()}`);
+  revalidatePath(`/proveedores/${providerId}`);
+}
