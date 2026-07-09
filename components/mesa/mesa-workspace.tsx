@@ -113,7 +113,12 @@ export function MesaDePagosWorkspace({
   const visibles = useMemo(() => {
     if (!proveedorFiltro.trim()) return porUrgencia;
     const q = proveedorFiltro.trim().toLowerCase();
-    return porUrgencia.filter((i) => humanizeProviderName(i.nombre_proveedor).toLowerCase().includes(q));
+    return porUrgencia.filter(
+      (i) =>
+        humanizeProviderName(i.nombre_proveedor).toLowerCase().includes(q) ||
+        i.num_factura?.toLowerCase().includes(q) ||
+        i.num_factura_erp_interno?.toLowerCase().includes(q)
+    );
   }, [porUrgencia, proveedorFiltro]);
 
   const groups = useMemo(() => {
@@ -239,11 +244,11 @@ export function MesaDePagosWorkspace({
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="text-stone" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PROVEEDOR</span>
+            <span className="text-stone" style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em" }}>PROVEEDOR O FACTURA</span>
             <input
               value={proveedorFiltro}
               onChange={(e) => setProveedorFiltro(e.target.value)}
-              placeholder="Todos los proveedores"
+              placeholder="Nombre, N° factura o N° interno ERP"
               className="rounded-md border border-line bg-paper px-2 py-1"
               style={{ fontSize: 11, width: 180 }}
             />

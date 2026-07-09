@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Wallet, Inbox, CheckCircle2, X } from "lucide-react";
+import { Wallet, Inbox, CheckCircle2, X, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCompact, formatFull, formatDateEs } from "@/lib/format";
 import { recalculateInvoices } from "@/lib/batch-actions";
@@ -151,6 +151,7 @@ export function ProviderInvoiceWorkspace({
   const [modalOpen, setModalOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("descuento");
   const [exclusionCandidates, setExclusionCandidates] = useState<ExclusionCandidate[] | null>(null);
+  const [facturaFiltro, setFacturaFiltro] = useState("");
 
   useEffect(() => {
     startTransition(async () => {
@@ -172,12 +173,34 @@ export function ProviderInvoiceWorkspace({
   function selectAllWithDiscount() {
     setSelected((prev) => {
       const next = new Set(prev);
-      invoices.filter((i) => i.valor_descuento > 0).forEach((i) => next.add(i.invoice_key));
+      invoicesFiltradas.filter((i) => i.valor_descuento > 0).forEach((i) => next.add(i.invoice_key));
       return next;
     });
   }
 
-  const sortedInvoices = useMemo(() => sortInvoices(invoices, sortKey), [invoices, sortKey]);
+  const facturaQuery = facturaFiltro.trim().toLowerCase();
+  const matchesFactura = (numFactura: string | null | undefined, numInterno?: string | null) =>
+    !facturaQuery ||
+    (numFactura?.toLowerCase().includes(facturaQuery) ?? false) ||
+    (numInterno?.toLowerCase().includes(facturaQuery) ?? false);
+
+  const invoicesFiltradas = useMemo(
+    () => invoices.filter((i) => matchesFactura(i.num_factura, i.num_factura_erp_interno)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [invoices, facturaQuery]
+  );
+  const reconcilingFiltrado = useMemo(
+    () => reconciling.filter((r) => matchesFactura(r.num_factura)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reconciling, facturaQuery]
+  );
+  const paidFiltrado = useMemo(
+    () => paid.filter((p) => matchesFactura(p.num_factura)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [paid, facturaQuery]
+  );
+
+  const sortedInvoices = useMemo(() => sortInvoices(invoicesFiltradas, sortKey), [invoicesFiltradas, sortKey]);
   const selectedInvoices = useMemo(() => invoices.filter((i) => selected.has(i.invoice_key)), [invoices, selected]);
   const totals = useMemo(() => {
     const bruto = selectedInvoices.reduce((s, i) => s + i.valor_bruto, 0);
@@ -190,9 +213,9 @@ export function ProviderInvoiceWorkspace({
     return { bruto, descuento, retencion, neto };
   }, [selectedInvoices]);
 
-  const facturas = invoices.filter((i) => i.tipo_documento === "factura");
-  const notasCredito = invoices.filter((i) => i.tipo_documento === "nota_credito");
-  const totalPendiente = invoices.reduce((s, i) => s + i.valor_bruto, 0);
+  const facturas = invoicesFiltradas.filter((i) => i.tipo_documento === "factura");
+  const notasCredito = invoicesFiltradas.filter((i) => i.tipo_documento === "nota_credito");
+  const totalPendiente = invoicesFiltradas.reduce((s, i) => s + i.valor_bruto, 0);
   const totalNC = notasCredito.reduce((s, i) => s + i.valor_bruto, 0);
 
   const soloNCSeleccionadas = selectedInvoices.length > 0 && selectedInvoices.every((i) => i.tipo_documento === "nota_credito");
@@ -222,6 +245,18 @@ export function ProviderInvoiceWorkspace({
             {t.label}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center gap-1.5 rounded-md border border-line px-2 py-1.5" style={{ maxWidth: 280 }}>
+        <Search size={13} className="text-stone" />
+        <input
+          type="text"
+          value={facturaFiltro}
+          onChange={(e) => setFacturaFiltro(e.target.value)}
+          placeholder="Buscar por N° factura o N° interno ERP…"
+          className="w-full bg-transparent outline-none"
+          style={{ fontSize: 11.5 }}
+        />
       </div>
 
       {tab === "pagar" && (
@@ -405,7 +440,7 @@ export function ProviderInvoiceWorkspace({
 
       {tab === "conciliar" && (
         <Card className="!p-0 overflow-hidden">
-          {reconciling.length === 0 ? (
+          {reconcilingFiltrado.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <Inbox size={32} className="text-stone" />
               <p className="text-stone" style={{ fontSize: 11 }}>
@@ -423,7 +458,7 @@ export function ProviderInvoiceWorkspace({
                 </tr>
               </thead>
               <tbody>
-                {reconciling.map((r) => {
+                {reconcilingFiltrado.map((r) => {
                   const esNC = r.tipo_documento_correo === "NOTA_CREDITO";
                   return (
                     <tr key={r.invoice_key} className="border-b border-line last:border-0">
@@ -478,7 +513,7 @@ export function ProviderInvoiceWorkspace({
 
       {tab === "pagadas" && (
         <Card className="!p-0 overflow-hidden">
-          {paid.length === 0 ? (
+          {paidFiltrado.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <CheckCircle2 size={32} className="text-stone" />
               <p className="text-stone" style={{ fontSize: 11 }}>
@@ -497,7 +532,7 @@ export function ProviderInvoiceWorkspace({
                 </tr>
               </thead>
               <tbody>
-                {paid.map((r) => (
+                {paidFiltrado.map((r) => (
                   <tr key={r.invoice_key} className="border-b border-line last:border-0">
                     <td className="px-3 py-2 text-ink">{r.num_factura}</td>
                     <td className="px-3 py-2 text-stone">{r.fecha_emision_erp ? formatDateEs(r.fecha_emision_erp) : "—"}</td>
