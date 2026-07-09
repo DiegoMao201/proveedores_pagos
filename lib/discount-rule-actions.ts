@@ -23,12 +23,6 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function yesterdayIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
 // Un peldano recien creado (o reactivado) no tiene una "regla anterior" que
 // proteger, asi que su valid_from debe cubrir las facturas que ya estan
 // pendientes de pago (no solo las que se emitan de hoy en adelante) para que
@@ -42,6 +36,12 @@ async function earliestPendingEmisionIso(providerId: number): Promise<string> {
   if (!res.ok) return todayIso();
   const rows = (await res.json()) as { fecha_emision: string }[];
   return rows[0]?.fecha_emision ?? todayIso();
+}
+
+function dayBeforeIso(dateIso: string): string {
+  const d = new Date(`${dateIso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 export interface DiscountRuleInput {
@@ -94,11 +94,18 @@ export async function editDiscountRule(ruleId: number, providerId: number, pelda
   const userId = await currentUserId();
 
   // Versionado estricto (regla H.2): nunca se modifica la fila vigente. Se cierra
-  // (valid_to = ayer) y se crea una nueva con el mismo peldano_orden. Las facturas
-  // emitidas antes conservan la regla vieja via calculate_discount's valid_from/valid_to.
+  // y se crea una nueva con el mismo peldano_orden. La nueva regla cubre las
+  // facturas que ya estan pendientes de pago (no solo las que se emitan de hoy
+  // en adelante): no hay historial real que proteger ahi (payment_batch_item
+  // guarda su propia foto del descuento aplicado al armar el lote, asi que una
+  // factura ya pagada nunca vuelve a pasar por calculate_discount). La vieja
+  // regla se cierra justo un dia antes de donde arranca la nueva para que no
+  // se solapen sus rangos de vigencia.
+  const validFrom = await earliestPendingEmisionIso(providerId);
+
   const closeRes = await postgrestFetch(
     `/discount_rule?id=eq.${ruleId}`,
-    { method: "PATCH", body: JSON.stringify({ valid_to: yesterdayIso(), updated_by: userId }) },
+    { method: "PATCH", body: JSON.stringify({ valid_to: dayBeforeIso(validFrom), updated_by: userId }) },
     "providers"
   );
   if (!closeRes.ok) throw new Error(`PostgREST PATCH /discount_rule -> HTTP ${closeRes.status}: ${await closeRes.text()}`);
@@ -114,7 +121,7 @@ export async function editDiscountRule(ruleId: number, providerId: number, pelda
         tasa_descuento: data.tasa_descuento,
         nombre_regla: data.nombre_regla,
         aplica_a_notas_credito: data.aplica_a_notas_credito,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,

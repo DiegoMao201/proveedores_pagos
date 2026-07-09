@@ -14,9 +14,9 @@ function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function yesterdayIso(): string {
-  const d = new Date();
-  d.setDate(d.getDate() - 1);
+function dayBeforeIso(dateIso: string): string {
+  const d = new Date(`${dateIso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }
 
@@ -93,9 +93,14 @@ export async function createRetentionRule(providerId: number, data: RetentionRul
 export async function editRetentionRule(ruleId: number, providerId: number, data: RetentionRuleInput) {
   const userId = await currentUserId();
 
+  // Igual que editDiscountRule: la nueva version cubre las facturas ya
+  // pendientes (no hay historial real que proteger, ver comentario ahi),
+  // y la regla vieja se cierra justo un dia antes para no solapar rangos.
+  const validFrom = await earliestPendingEmisionIso(providerId);
+
   const closeRes = await postgrestFetch(
     `/retention_rule?id=eq.${ruleId}`,
-    { method: "PATCH", body: JSON.stringify({ valid_to: yesterdayIso(), updated_by: userId }) },
+    { method: "PATCH", body: JSON.stringify({ valid_to: dayBeforeIso(validFrom), updated_by: userId }) },
     "providers"
   );
   if (!closeRes.ok) throw new Error(`PostgREST PATCH /retention_rule -> HTTP ${closeRes.status}: ${await closeRes.text()}`);
@@ -107,7 +112,7 @@ export async function editRetentionRule(ruleId: number, providerId: number, data
       body: JSON.stringify({
         provider_id: providerId,
         ...data,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,

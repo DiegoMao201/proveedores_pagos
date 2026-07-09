@@ -62,7 +62,7 @@ export function DiscountRuleModal({ providerId, existingRule }: Props) {
         };
         if (existingRule) {
           await editDiscountRule(existingRule.id, providerId, existingRule.peldano_orden, data);
-          showToast({ kind: "success", message: "Peldaño actualizado. Facturas emitidas antes conservan la regla anterior." });
+          showToast({ kind: "success", message: "Peldaño actualizado. Ya aplica a las facturas pendientes de este proveedor." });
         } else {
           await createDiscountRule(providerId, data);
           showToast({ kind: "success", message: "Peldaño agregado." });
@@ -96,8 +96,9 @@ export function DiscountRuleModal({ providerId, existingRule }: Props) {
         <div className="flex flex-col gap-3">
           {existingRule && (
             <div className="rounded-md border border-orange bg-cream px-3 py-2" style={{ fontSize: 10.5 }}>
-              Al guardar se cerrará la regla vigente y se creará una nueva desde hoy. Facturas emitidas antes conservan la
-              regla anterior ({(existingRule.tasa_descuento * 100).toFixed(1)}%).
+              Al guardar se cerrará la regla vigente ({(existingRule.tasa_descuento * 100).toFixed(1)}%) y la nueva aplicará
+              también a las facturas que ya están pendientes de pago. Solo las facturas ya pagadas conservan la regla
+              anterior.
             </div>
           )}
           <FormField label="Días máximos">

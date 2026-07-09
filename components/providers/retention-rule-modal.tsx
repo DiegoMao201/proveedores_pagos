@@ -104,7 +104,7 @@ export function RetentionRuleModal({ providerId, existingRule, hasActiveOfSameTy
         };
         if (existingRule) {
           await editRetentionRule(existingRule.id, providerId, data);
-          showToast({ kind: "success", message: "Regla actualizada. Facturas emitidas antes conservan la regla anterior." });
+          showToast({ kind: "success", message: "Regla actualizada. Ya aplica a las facturas pendientes de este proveedor." });
         } else {
           await createRetentionRule(providerId, data);
           showToast({ kind: "success", message: "Regla de retención agregada." });
@@ -138,14 +138,15 @@ export function RetentionRuleModal({ providerId, existingRule, hasActiveOfSameTy
         <div className="flex flex-col gap-3">
           {existingRule && (
             <div className="rounded-md border border-orange bg-cream px-3 py-2" style={{ fontSize: 10.5 }}>
-              Al guardar se cerrará la regla vigente y se creará una nueva desde hoy. Facturas emitidas antes conservan la
-              regla anterior ({(existingRule.tasa * 100).toFixed(2)}%).
+              Al guardar se cerrará la regla vigente ({(existingRule.tasa * 100).toFixed(2)}%) y la nueva aplicará también a
+              las facturas que ya están pendientes de pago. Solo las facturas ya pagadas conservan la regla anterior.
             </div>
           )}
           {!existingRule && hasActiveOfSameType && (
             <div className="rounded-md border border-orange bg-cream px-3 py-2" style={{ fontSize: 10.5 }}>
               Este proveedor ya tiene una regla activa de tipo &quot;{TIPO_INFO[tipo].label}&quot;. Al guardar, se cerrará la
-              vigente y se creará esta nueva. Facturas emitidas antes conservarán la regla vieja.
+              vigente y la nueva aplicará también a las facturas ya pendientes. Solo las facturas ya pagadas conservan la
+              regla anterior.
             </div>
           )}
 
