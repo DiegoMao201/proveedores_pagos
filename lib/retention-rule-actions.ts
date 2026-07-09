@@ -20,6 +20,20 @@ function yesterdayIso(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Una retencion recien creada (o reactivada) no tiene una "regla anterior" que
+// proteger, asi que su valid_from debe cubrir las facturas que ya estan
+// pendientes de pago (no solo las que se emitan de hoy en adelante).
+async function earliestPendingEmisionIso(providerId: number): Promise<string> {
+  const res = await postgrestFetch(
+    `/v_active_invoices?proveedor_id=eq.${providerId}&fecha_emision=not.is.null&select=fecha_emision&order=fecha_emision.asc&limit=1`,
+    {},
+    "treasury"
+  );
+  if (!res.ok) return todayIso();
+  const rows = (await res.json()) as { fecha_emision: string }[];
+  return rows[0]?.fecha_emision ?? todayIso();
+}
+
 export interface RetentionRuleInput {
   tipo_retencion: TipoRetencion;
   tasa: number;
@@ -55,6 +69,7 @@ export async function previewRetentionImpact(
 
 export async function createRetentionRule(providerId: number, data: RetentionRuleInput) {
   const userId = await currentUserId();
+  const validFrom = await earliestPendingEmisionIso(providerId);
   const res = await postgrestFetch(
     "/retention_rule",
     {
@@ -62,7 +77,7 @@ export async function createRetentionRule(providerId: number, data: RetentionRul
       body: JSON.stringify({
         provider_id: providerId,
         ...data,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,
@@ -129,6 +144,8 @@ export async function reactivateRetentionRule(ruleId: number, providerId: number
   const rule = rows[0];
   if (!rule) throw new Error("Regla no encontrada");
 
+  const validFrom = await earliestPendingEmisionIso(providerId);
+
   const createRes = await postgrestFetch(
     "/retention_rule",
     {
@@ -142,7 +159,7 @@ export async function reactivateRetentionRule(ruleId: number, providerId: number
         umbral_uvt: rule.umbral_uvt,
         valor_minimo: rule.valor_minimo,
         aplica_acumulado_diario: rule.aplica_acumulado_diario,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,

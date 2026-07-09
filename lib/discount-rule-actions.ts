@@ -29,6 +29,21 @@ function yesterdayIso(): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Un peldano recien creado (o reactivado) no tiene una "regla anterior" que
+// proteger, asi que su valid_from debe cubrir las facturas que ya estan
+// pendientes de pago (no solo las que se emitan de hoy en adelante) para que
+// coincida con lo que previewDiscountImpact le mostro al usuario antes de guardar.
+async function earliestPendingEmisionIso(providerId: number): Promise<string> {
+  const res = await postgrestFetch(
+    `/v_active_invoices?proveedor_id=eq.${providerId}&fecha_emision=not.is.null&select=fecha_emision&order=fecha_emision.asc&limit=1`,
+    {},
+    "treasury"
+  );
+  if (!res.ok) return todayIso();
+  const rows = (await res.json()) as { fecha_emision: string }[];
+  return rows[0]?.fecha_emision ?? todayIso();
+}
+
 export interface DiscountRuleInput {
   dias_max: number;
   tasa_descuento: number;
@@ -49,7 +64,7 @@ async function getNextPeldano(providerId: number): Promise<number> {
 
 export async function createDiscountRule(providerId: number, data: DiscountRuleInput) {
   const userId = await currentUserId();
-  const peldanoOrden = await getNextPeldano(providerId);
+  const [peldanoOrden, validFrom] = await Promise.all([getNextPeldano(providerId), earliestPendingEmisionIso(providerId)]);
 
   const res = await postgrestFetch(
     "/discount_rule",
@@ -62,7 +77,7 @@ export async function createDiscountRule(providerId: number, data: DiscountRuleI
         tasa_descuento: data.tasa_descuento,
         nombre_regla: data.nombre_regla,
         aplica_a_notas_credito: data.aplica_a_notas_credito,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,
@@ -145,7 +160,7 @@ export async function reactivateDiscountRule(ruleId: number, providerId: number)
   const rule = rows[0];
   if (!rule) throw new Error("Regla no encontrada");
 
-  const peldanoOrden = await getNextPeldano(providerId);
+  const [peldanoOrden, validFrom] = await Promise.all([getNextPeldano(providerId), earliestPendingEmisionIso(providerId)]);
 
   const createRes = await postgrestFetch(
     "/discount_rule",
@@ -158,7 +173,7 @@ export async function reactivateDiscountRule(ruleId: number, providerId: number)
         tasa_descuento: rule.tasa_descuento,
         nombre_regla: rule.nombre_regla,
         aplica_a_notas_credito: rule.aplica_a_notas_credito,
-        valid_from: todayIso(),
+        valid_from: validFrom,
         activa: true,
         created_by: userId,
         updated_by: userId,

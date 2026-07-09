@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo, useEffect } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight, Wallet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCompact, formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
@@ -44,6 +44,8 @@ function diasHasta(fecha: string | null): number | null {
   return Math.round((new Date(fecha).getTime() - Date.now()) / 86400000);
 }
 
+const SELECTED_STORAGE_KEY = "mesa_pagos_lote_seleccionado";
+
 interface Totals {
   bruto: number;
   descuento: number;
@@ -81,6 +83,7 @@ export function MesaDePagosWorkspace({
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [pending, startTransition] = useTransition();
   const [modalOpen, setModalOpen] = useState(false);
+  const skipNextCategoriaClear = useRef(true);
 
   useEffect(() => {
     startTransition(async () => {
@@ -90,7 +93,35 @@ export function MesaDePagosWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaPago]);
 
+  // Restaura la selección al volver a Mesa de pagos (ej. si el usuario se
+  // fue a revisar un proveedor mientras armaba un lote) para que la barra
+  // flotante no se borre por navegar fuera de esta página.
   useEffect(() => {
+    try {
+      const raw = window.sessionStorage.getItem(SELECTED_STORAGE_KEY);
+      if (raw) setSelected(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      // sessionStorage no disponible o valor corrupto: seguimos sin selección restaurada
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (selected.size > 0) {
+        window.sessionStorage.setItem(SELECTED_STORAGE_KEY, JSON.stringify(Array.from(selected)));
+      } else {
+        window.sessionStorage.removeItem(SELECTED_STORAGE_KEY);
+      }
+    } catch {
+      // sessionStorage no disponible: la selección solo vive en memoria
+    }
+  }, [selected]);
+
+  useEffect(() => {
+    if (skipNextCategoriaClear.current) {
+      skipNextCategoriaClear.current = false;
+      return;
+    }
     setSelected(new Set());
   }, [categoria]);
 
@@ -163,6 +194,7 @@ export function MesaDePagosWorkspace({
 
   const selectedInvoices = useMemo(() => invoices.filter((i) => selected.has(i.invoice_key)), [invoices, selected]);
   const totals = useMemo(() => sumTotals(selectedInvoices), [selectedInvoices]);
+  const hasSelection = selectedInvoices.length > 0;
 
   const providerChips = useMemo(() => {
     const byProvider = new Map<number, { nombre: string; rows: MesaInvoiceRow[] }>();
@@ -223,7 +255,7 @@ export function MesaDePagosWorkspace({
   const totalDescuentoVisible = visibles.reduce((s, i) => s + i.valor_descuento, 0);
 
   return (
-    <div className="flex flex-col gap-3" style={{ paddingBottom: selected.size > 0 ? 96 : 0 }}>
+    <div className="flex flex-col gap-3" style={{ paddingBottom: hasSelection ? 96 : 0 }}>
       <div className="flex flex-col gap-2.5 rounded-lg border border-line bg-paper p-3">
         <div className="flex flex-wrap items-end gap-3">
           <div
@@ -293,7 +325,7 @@ export function MesaDePagosWorkspace({
                 Seleccionar todas con descuento vigente ⚡
               </button>
             )}
-            {selected.size > 0 && (
+            {hasSelection && (
               <button
                 type="button"
                 onClick={() => setSelected(new Set())}
@@ -451,13 +483,13 @@ export function MesaDePagosWorkspace({
         )}
       </div>
 
-      {selected.size > 0 && (
+      {hasSelection && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t-2 bg-paper shadow-lg" style={{ borderColor: "var(--color-red-deep)", padding: "10px 20px" }}>
           <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-4">
             <div>
               <p className="text-stone" style={{ fontSize: 9, fontWeight: 700 }}>LOTE CONSOLIDADO</p>
               <p className="text-ink" style={{ fontSize: 12, fontWeight: 700 }}>
-                {selected.size} documentos de {numProveedores} proveedores seleccionados
+                {selectedInvoices.length} documentos de {numProveedores} proveedores seleccionados
               </p>
               {soloNCSeleccionadas && <p className="text-red-deep" style={{ fontSize: 9.5 }}>Un lote debe incluir al menos una factura positiva.</p>}
               {netoNegativo && <p className="text-red-deep" style={{ fontSize: 9.5 }}>El lote resulta en pago negativo. Quitá NCs o agregá facturas.</p>}
