@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Send, AlertTriangle } from "lucide-react";
+import { Send, AlertTriangle, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, humanizeProviderName } from "@/lib/format";
@@ -19,8 +19,23 @@ export function NotificarForm({ codigoLote, breakdown }: { codigoLote: string; b
   const [pending, startTransition] = useTransition();
   const { toast, showToast } = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set(breakdown.filter((b) => b.email_pago).map((b) => b.proveedor_id)));
+  const [emailOverrides, setEmailOverrides] = useState<Record<number, string>>({});
   const [modoPrueba, setModoPrueba] = useState(true);
   const [results, setResults] = useState<NotifyResult[] | null>(null);
+
+  function emailFor(b: BatchProviderBreakdownRow): string {
+    return emailOverrides[b.proveedor_id] ?? b.email_pago ?? "";
+  }
+
+  function setEmail(providerId: number, value: string) {
+    setEmailOverrides((prev) => ({ ...prev, [providerId]: value }));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (value.trim()) next.add(providerId);
+      else next.delete(providerId);
+      return next;
+    });
+  }
 
   function toggle(providerId: number) {
     setSelected((prev) => {
@@ -33,10 +48,15 @@ export function NotificarForm({ codigoLote, breakdown }: { codigoLote: string; b
 
   function handleSend() {
     startTransition(async () => {
+      const overridesToSend: Record<number, string> = {};
+      for (const b of breakdown) {
+        const ov = emailOverrides[b.proveedor_id]?.trim();
+        if (ov && ov !== b.email_pago) overridesToSend[b.proveedor_id] = ov;
+      }
       const res = await fetch(`/api/lotes/${codigoLote}/notify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proveedorIds: Array.from(selected), modoPrueba }),
+        body: JSON.stringify({ proveedorIds: Array.from(selected), modoPrueba, emailOverrides: overridesToSend }),
       });
       const body = (await res.json().catch(() => ({}))) as { results?: NotifyResult[]; error?: string };
       if (!res.ok) {
@@ -69,14 +89,15 @@ export function NotificarForm({ codigoLote, breakdown }: { codigoLote: string; b
           </thead>
           <tbody>
             {breakdown.map((b) => {
-              const hasEmail = !!b.email_pago;
+              const email = emailFor(b);
+              const isOverride = Boolean(emailOverrides[b.proveedor_id]) && emailOverrides[b.proveedor_id] !== b.email_pago;
               return (
                 <tr key={b.proveedor_id} className="border-b border-line last:border-0">
                   <td className="px-3 py-3">
                     <input
                       type="checkbox"
                       checked={selected.has(b.proveedor_id)}
-                      disabled={!hasEmail}
+                      disabled={!email}
                       onChange={() => toggle(b.proveedor_id)}
                       style={{ width: 14, height: 14, accentColor: "var(--color-red-deep)" }}
                     />
@@ -84,8 +105,28 @@ export function NotificarForm({ codigoLote, breakdown }: { codigoLote: string; b
                   <td className="px-4 py-3 font-semibold text-ink">{humanizeProviderName(b.proveedor_nombre)}</td>
                   <td className="num px-4 py-3 text-right">{b.num_facturas}</td>
                   <td className="num px-4 py-3 text-right font-semibold">{formatFull(b.total_neto)}</td>
-                  <td className="px-4 py-3" style={{ fontSize: 11 }}>
-                    {hasEmail ? <span className="text-stone">{b.email_pago}</span> : <span className="text-orange">⚠ Sin email — no se enviará</span>}
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(b.proveedor_id, e.target.value)}
+                        placeholder="Escribe un correo…"
+                        className="rounded-md border border-line bg-paper px-2 py-1"
+                        style={{ fontSize: 11, width: 210 }}
+                      />
+                      {isOverride && <Pencil size={11} className="text-orange" />}
+                    </div>
+                    {!email && (
+                      <p className="text-orange" style={{ fontSize: 9.5, marginTop: 2 }}>
+                        ⚠ Sin correo — no se enviará hasta que escribas uno
+                      </p>
+                    )}
+                    {isOverride && (
+                      <p className="text-stone" style={{ fontSize: 9.5, marginTop: 2 }}>
+                        Se guardará en el proveedor al enviar
+                      </p>
+                    )}
                   </td>
                 </tr>
               );

@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 interface NotifyBody {
   proveedorIds: number[];
   modoPrueba: boolean;
+  emailOverrides?: Record<number, string>;
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ codigo: string }> }) {
@@ -26,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
   if (!batch) return NextResponse.json({ error: "BATCH_NOT_FOUND" }, { status: 404 });
   if (batch.estado !== "paid") return NextResponse.json({ error: "BATCH_NOT_PAID" }, { status: 400 });
 
-  const { proveedorIds, modoPrueba } = (await req.json()) as NotifyBody;
+  const { proveedorIds, modoPrueba, emailOverrides } = (await req.json()) as NotifyBody;
   if (!proveedorIds?.length) return NextResponse.json({ error: "EMPTY_PROVIDER_LIST" }, { status: 400 });
 
   const apiKey = process.env.SENDGRID_API_KEY;
@@ -70,14 +71,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       codigoLote: batch.codigo_lote,
     });
 
-    const destinatario = modoPrueba ? testEmail : provider.email_pago;
+    const contactosExtra = contacts.filter((c) => c.provider_id === provider.proveedor_id).map((c) => c.email);
+    const override = emailOverrides?.[provider.proveedor_id]?.trim();
+    const destinatarioReal = override || provider.email_pago || contactosExtra[0];
+    const destinatario = modoPrueba ? testEmail : destinatarioReal;
     if (!destinatario) {
       results.push({ proveedor: provider.proveedor_nombre, estado: "error", error: "Sin email de pago configurado" });
       continue;
     }
 
-    const contactosExtra = contacts.filter((c) => c.provider_id === provider.proveedor_id).map((c) => c.email);
-    const ccList = modoPrueba ? undefined : contactosExtra.length > 0 ? contactosExtra : undefined;
+    // Si el destinatario ya salió de contactosExtra (porque no había email de
+    // pago), no lo dupliques en copia.
+    const ccBase = destinatarioReal === contactosExtra[0] ? contactosExtra.slice(1) : contactosExtra;
+    const ccList = modoPrueba ? undefined : ccBase.length > 0 ? ccBase : undefined;
 
     const subjectPrefix = modoPrueba ? "[PRUEBA] " : "";
     const subject = `${subjectPrefix}Ferreinox — Notificación de pago realizado — ${formatFull(provider.total_neto)}`;
@@ -112,18 +118,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       );
 
       results.push({ proveedor: provider.proveedor_nombre, estado: "enviado" });
+
+      // Si escribió un correo nuevo aquí mismo y no había uno guardado,
+      // lo dejamos puesto en la cuenta bancaria para que el próximo lote
+      // ya lo traiga sin tener que volver a escribirlo.
+      if (!modoPrueba && override && override !== provider.email_pago && provider.bank_account_id) {
+        await postgrestFetch(
+          `/bank_account?id=eq.${provider.bank_account_id}`,
+          { method: "PATCH", body: JSON.stringify({ email_pago: override, updated_by: userId }) },
+          "providers"
+        );
+      }
     } catch (err) {
       results.push({ proveedor: provider.proveedor_nombre, estado: "error", error: err instanceof Error ? err.message : "Error desconocido" });
     }
   }
 
   // Gerencia ya no recibe copia de cada notificación individual -- en vez de
-  // eso recibe un único correo con el resumen consolidado de todo el lote.
+  // eso recibe un único correo con el resumen consolidado de TODO el lote
+  // (allBreakdown, no solo los proveedores seleccionados para notificar hoy)
+  // para que el total coincida con lo que realmente salió del banco.
   const gerenciaHtml = renderBatchSummaryTemplate({
     codigoLote: batch.codigo_lote,
     fechaAplicacion: formatDateEs(batch.fecha_pago_programada),
     bancoDestino: "Bancolombia",
-    proveedores: breakdown.map((b) => ({
+    proveedores: allBreakdown.map((b) => ({
       proveedorNombre: b.proveedor_nombre,
       numDocumentos: b.num_documentos,
       valorBruto: b.total_bruto_facturas,
@@ -131,13 +150,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       retenciones: b.total_retenciones,
       valorNeto: b.total_neto,
     })),
-    totalBruto: breakdown.reduce((s, b) => s + b.total_bruto_facturas, 0),
-    totalDescuento: breakdown.reduce((s, b) => s + b.total_descuento, 0),
-    totalRetenciones: breakdown.reduce((s, b) => s + b.total_retenciones, 0),
-    totalNeto: breakdown.reduce((s, b) => s + b.total_neto, 0),
+    totalBruto: allBreakdown.reduce((s, b) => s + b.total_bruto_facturas, 0),
+    totalDescuento: allBreakdown.reduce((s, b) => s + b.total_descuento, 0),
+    totalRetenciones: allBreakdown.reduce((s, b) => s + b.total_retenciones, 0),
+    totalNeto: allBreakdown.reduce((s, b) => s + b.total_neto, 0),
   });
   const gerenciaSubjectPrefix = modoPrueba ? "[PRUEBA] " : "";
-  const gerenciaSubject = `${gerenciaSubjectPrefix}Ferreinox — Lote ${batch.codigo_lote} pagado — ${formatFull(breakdown.reduce((s, b) => s + b.total_neto, 0))}`;
+  const gerenciaSubject = `${gerenciaSubjectPrefix}Ferreinox — Lote ${batch.codigo_lote} pagado — ${formatFull(allBreakdown.reduce((s, b) => s + b.total_neto, 0))}`;
   const gerenciaDestinatario = modoPrueba ? testEmail : "gerencia@ferreinox.co";
 
   try {
