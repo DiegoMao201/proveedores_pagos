@@ -100,6 +100,7 @@ export interface BatchItemDetailRow {
   valor_retencion_otros: number;
   valor_neto: number;
   tipo_documento: "factura" | "nota_credito";
+  descuento_manual: boolean;
 }
 
 export async function getBatchItemsDetail(batchId: number): Promise<BatchItemDetailRow[]> {

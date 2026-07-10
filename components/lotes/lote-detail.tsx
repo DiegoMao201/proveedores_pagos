@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, AlertTriangle, Download, XCircle, CheckCircle2, Send } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Download, XCircle, CheckCircle2, Send, Plus, Trash2, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, formatDateEs, formatDateRelative, humanizeProviderName } from "@/lib/format";
-import { markBatchPaid, cancelBatch } from "@/lib/lotes-actions";
+import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount } from "@/lib/lotes-actions";
+import { AddInvoicesModal } from "@/components/lotes/add-invoices-modal";
 import type { BatchSummaryRow } from "@/lib/batch-data";
 import type { BatchProviderBreakdownRow, BatchItemDetailRow, BatchAuditLogRow, BatchDiscrepancyRow } from "@/lib/lotes-data";
 
@@ -23,9 +24,89 @@ const EVENT_LABELS: Record<string, string> = {
   BATCH_EXPORTED: "PAB exportado",
   BATCH_MARKED_PAID: "Marcado como pagado",
   BATCH_CANCELLED: "Cancelado",
+  BATCH_ITEMS_ADDED: "Facturas agregadas",
+  BATCH_ITEM_REMOVED: "Factura quitada",
+  BATCH_ITEM_DISCOUNT_OVERRIDDEN: "Descuento ajustado manualmente",
 };
 
-function ItemsTable({ items }: { items: BatchItemDetailRow[] }) {
+function DiscountCell({
+  item,
+  editable,
+  onOverride,
+}: {
+  item: BatchItemDetailRow;
+  editable: boolean;
+  onOverride: (itemId: number, value: number) => Promise<boolean>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(String(item.valor_descuento));
+  const [pending, setPending] = useState(false);
+
+  if (!editing) {
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <span className="num text-success">{item.valor_descuento > 0 ? `−${formatFull(item.valor_descuento)}` : "—"}</span>
+        {item.descuento_manual && <Pencil size={10} className="text-orange" />}
+        {editable && (
+          <button
+            type="button"
+            onClick={() => {
+              setValue(String(item.valor_descuento));
+              setEditing(true);
+            }}
+            className="text-stone hover:text-red-deep"
+            style={{ fontSize: 9 }}
+          >
+            editar
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <input
+        type="number"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        disabled={pending}
+        autoFocus
+        className="rounded border border-line bg-paper px-1 py-0.5 text-right"
+        style={{ fontSize: 11, width: 100 }}
+      />
+      <button
+        type="button"
+        disabled={pending}
+        onClick={async () => {
+          setPending(true);
+          const ok = await onOverride(item.id, Number(value));
+          setPending(false);
+          if (ok) setEditing(false);
+        }}
+        className="text-success"
+        style={{ fontSize: 11, fontWeight: 800 }}
+      >
+        ✓
+      </button>
+      <button type="button" disabled={pending} onClick={() => setEditing(false)} className="text-stone" style={{ fontSize: 11 }}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
+function ItemsTable({
+  items,
+  editable,
+  onRemove,
+  onOverrideDiscount,
+}: {
+  items: BatchItemDetailRow[];
+  editable: boolean;
+  onRemove: (item: BatchItemDetailRow) => void;
+  onOverrideDiscount: (itemId: number, value: number) => Promise<boolean>;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full" style={{ fontSize: 11 }}>
@@ -37,6 +118,7 @@ function ItemsTable({ items }: { items: BatchItemDetailRow[] }) {
             <th className="px-3 py-2 text-right">Descuento</th>
             <th className="px-3 py-2 text-right">Retenciones</th>
             <th className="px-3 py-2 text-right">Neto</th>
+            {editable && <th className="px-3 py-2" style={{ width: 30 }}></th>}
           </tr>
         </thead>
         <tbody>
@@ -50,9 +132,18 @@ function ItemsTable({ items }: { items: BatchItemDetailRow[] }) {
                 </td>
                 <td className="date px-3 py-2 text-stone">{item.fecha_emision ? formatDateEs(item.fecha_emision) : "—"}</td>
                 <td className="num px-3 py-2 text-right">{formatFull(item.valor_bruto)}</td>
-                <td className="num px-3 py-2 text-right text-success">{item.valor_descuento > 0 ? `−${formatFull(item.valor_descuento)}` : "—"}</td>
+                <td className="px-3 py-2 text-right">
+                  <DiscountCell item={item} editable={editable} onOverride={onOverrideDiscount} />
+                </td>
                 <td className="num px-3 py-2 text-right text-orange">{retencion > 0 ? `−${formatFull(retencion)}` : "—"}</td>
                 <td className="num px-3 py-2 text-right font-semibold">{formatFull(item.valor_neto)}</td>
+                {editable && (
+                  <td className="px-3 py-2 text-right">
+                    <button type="button" onClick={() => onRemove(item)} className="text-stone hover:text-red-deep" title="Quitar del lote">
+                      <Trash2 size={13} />
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
@@ -134,11 +225,13 @@ export function LoteDetail({
   const [pending, startTransition] = useTransition();
   const [cancelOpen, setCancelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [addModalProvider, setAddModalProvider] = useState<{ id: number; nombre: string } | null>(null);
   const { toast, showToast } = useToast();
 
   const estado = ESTADO_LABELS[batch.estado];
   const esMultiproveedor = batch.es_multiproveedor;
   const todoPortal = breakdown.length > 0 && breakdown.every((b) => b.medio_pago === "portal_proveedor");
+  const editableItems = canEdit && (batch.estado === "draft" || batch.estado === "exported");
 
   function toggleCollapsed(providerId: number) {
     setCollapsed((prev) => {
@@ -147,6 +240,30 @@ export function LoteDetail({
       else next.add(providerId);
       return next;
     });
+  }
+
+  function handleRemoveItem(item: BatchItemDetailRow) {
+    if (!window.confirm(`¿Quitar la factura ${item.num_factura} de este lote? Podrás incluirla en otro lote después.`)) return;
+    startTransition(async () => {
+      const result = await removeBatchItem(batch.id, item.id, batch.codigo_lote);
+      if (result.ok) {
+        showToast({ kind: "success", message: "Factura quitada del lote." });
+        router.refresh();
+      } else {
+        showToast({ kind: "error", message: result.error ?? "No se pudo quitar la factura." });
+      }
+    });
+  }
+
+  async function handleOverrideDiscount(itemId: number, value: number): Promise<boolean> {
+    const result = await overrideBatchItemDiscount(batch.id, itemId, value, batch.codigo_lote);
+    if (result.ok) {
+      showToast({ kind: "success", message: "Descuento actualizado." });
+      router.refresh();
+      return true;
+    }
+    showToast({ kind: "error", message: result.error ?? "No se pudo actualizar el descuento." });
+    return false;
   }
 
   function handleExport() {
@@ -283,8 +400,18 @@ export function LoteDetail({
       )}
 
       <Card className="!p-0 overflow-hidden">
-        <div className="px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
+        <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
           <p className="text-ink" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>Detalle del lote</p>
+          {editableItems && !esMultiproveedor && batch.proveedor_id && (
+            <button
+              type="button"
+              onClick={() => setAddModalProvider({ id: batch.proveedor_id!, nombre: batch.proveedor_nombre ?? "" })}
+              className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-graphite hover:border-red-deep hover:text-red-deep"
+              style={{ fontSize: 10.5, fontWeight: 700 }}
+            >
+              <Plus size={12} /> Agregar facturas
+            </button>
+          )}
         </div>
         {esMultiproveedor ? (
           <div className="flex flex-col">
@@ -306,14 +433,29 @@ export function LoteDetail({
                     <span className={b.inscrita_bancolombia ? "text-success" : "text-orange"} style={{ fontSize: 9.5 }}>
                       {b.inscrita_bancolombia ? "✓ inscrita" : "⚠ no inscrita"}
                     </span>
+                    {editableItems && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setAddModalProvider({ id: b.proveedor_id, nombre: b.proveedor_nombre });
+                        }}
+                        className="ml-auto flex items-center gap-1 rounded-md border border-line px-2 py-0.5 text-graphite hover:border-red-deep hover:text-red-deep"
+                        style={{ fontSize: 9.5, fontWeight: 700 }}
+                      >
+                        <Plus size={11} /> Agregar
+                      </button>
+                    )}
                   </div>
-                  {!isCollapsed && <ItemsTable items={providerItems} />}
+                  {!isCollapsed && (
+                    <ItemsTable items={providerItems} editable={editableItems} onRemove={handleRemoveItem} onOverrideDiscount={handleOverrideDiscount} />
+                  )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <ItemsTable items={items} />
+          <ItemsTable items={items} editable={editableItems} onRemove={handleRemoveItem} onOverrideDiscount={handleOverrideDiscount} />
         )}
       </Card>
 
@@ -381,6 +523,15 @@ export function LoteDetail({
       )}
 
       <CancelModal open={cancelOpen} onClose={() => setCancelOpen(false)} batchId={batch.id} codigoLote={batch.codigo_lote} />
+      <AddInvoicesModal
+        open={addModalProvider !== null}
+        onClose={() => setAddModalProvider(null)}
+        batchId={batch.id}
+        codigoLote={batch.codigo_lote}
+        providerId={addModalProvider?.id ?? 0}
+        providerNombre={humanizeProviderName(addModalProvider?.nombre ?? "")}
+        fechaPago={batch.fecha_pago_programada}
+      />
       <Toast toast={toast} />
     </div>
   );

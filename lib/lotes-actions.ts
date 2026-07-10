@@ -59,6 +59,80 @@ export async function markBatchPaid(batchId: number, codigoLote: string): Promis
   return { ok: true };
 }
 
+export async function addInvoicesToBatch(batchId: number, invoiceKeys: string[], codigoLote: string): Promise<{ ok: boolean; error?: string; numAgregadas?: number }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+  if (invoiceKeys.length === 0) return { ok: false, error: "Selecciona al menos una factura." };
+
+  const res = await postgrestFetch(
+    "/rpc/add_invoices_to_batch",
+    { method: "POST", body: JSON.stringify({ p_batch_id: batchId, p_invoice_keys: invoiceKeys, p_user_id: userId }) },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string; num_agregadas?: number };
+  if (result.error === "BATCH_NOT_EDITABLE") return { ok: false, error: "Este lote ya no se puede editar (no está en borrador ni exportado)." };
+  if (result.error === "INVOICE_ALREADY_IN_ACTIVE_BATCH") return { ok: false, error: "Alguna de estas facturas ya está en otro lote activo." };
+  if (result.error === "INVOICE_NOT_SELECTABLE") return { ok: false, error: "Alguna de estas facturas ya no está disponible para pagar." };
+  if (result.error === "INVOICE_PROVIDER_MISMATCH") return { ok: false, error: "Estas facturas son de un proveedor distinto al del lote." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  return { ok: true, numAgregadas: result.num_agregadas };
+}
+
+export async function removeBatchItem(batchId: number, itemId: number, codigoLote: string): Promise<{ ok: boolean; error?: string }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+
+  const res = await postgrestFetch(
+    "/rpc/remove_batch_item",
+    { method: "POST", body: JSON.stringify({ p_batch_id: batchId, p_item_id: itemId, p_user_id: userId }) },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string };
+  if (result.error === "BATCH_NOT_EDITABLE") return { ok: false, error: "Este lote ya no se puede editar." };
+  if (result.error === "BATCH_MUST_HAVE_AT_LEAST_ONE_ITEM") return { ok: false, error: "El lote debe tener al menos una factura. Si necesitas vaciarlo, cancélalo." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  return { ok: true };
+}
+
+export async function overrideBatchItemDiscount(
+  batchId: number,
+  itemId: number,
+  valorDescuento: number,
+  codigoLote: string,
+  motivo?: string
+): Promise<{ ok: boolean; error?: string; valorNeto?: number }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+
+  const res = await postgrestFetch(
+    "/rpc/override_batch_item_discount",
+    {
+      method: "POST",
+      body: JSON.stringify({ p_batch_id: batchId, p_item_id: itemId, p_valor_descuento: valorDescuento, p_user_id: userId, p_motivo: motivo ?? null }),
+    },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string; valor_neto?: number };
+  if (result.error === "BATCH_NOT_EDITABLE") return { ok: false, error: "Este lote ya no se puede editar." };
+  if (result.error === "DISCOUNT_EXCEEDS_GROSS_VALUE") return { ok: false, error: "El descuento no puede ser mayor al valor bruto de la factura." };
+  if (result.error === "NEGATIVE_ITEM_NET") return { ok: false, error: "Ese descuento dejaría el neto de la factura en negativo." };
+  if (result.error === "INVALID_DISCOUNT_VALUE") return { ok: false, error: "Valor de descuento inválido." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  return { ok: true, valorNeto: result.valor_neto };
+}
+
 export async function cancelBatch(batchId: number, codigoLote: string, reason: string): Promise<{ ok: boolean; error?: string }> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "NO_SESSION" };
