@@ -31,6 +31,29 @@ export async function createBatch(input: {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "NO_SESSION" };
 
+  // Mesa de Pagos (ConsolidarLoteModal) siempre manda destAccountId: null,
+  // asumiendo que el lote va a ser multi-proveedor (donde NULL es correcto,
+  // create_payment_batch resuelve la cuenta de cada proveedor mas tarde vía
+  // v_batch_provider_breakdown). Si terminas seleccionando facturas de UN
+  // SOLO proveedor, esMultiproveedor sale false y create_payment_batch
+  // necesita una cuenta destino real -- sin esto, "id = NULL" nunca
+  // matchea nada en providers.bank_account y siempre da
+  // DESTINATION_ACCOUNT_NOT_FOUND. Solo se resuelve aqui cuando el cliente
+  // no mando ya una cuenta explicita (el modal de un solo proveedor desde
+  // /proveedores/[id] SI la manda, y esa sigue intacta).
+  let destAccountId = input.destAccountId;
+  if (!input.esMultiproveedor && !destAccountId && input.providerId) {
+    const destRes = await postgrestFetch(
+      `/bank_account?provider_id=eq.${input.providerId}&activa=eq.true&es_principal=eq.true&select=id&limit=1`,
+      {},
+      "providers"
+    );
+    if (destRes.ok) {
+      const destRows = (await destRes.json()) as { id: number }[];
+      destAccountId = destRows[0]?.id ?? null;
+    }
+  }
+
   const res = await postgrestFetch(
     "/rpc/create_payment_batch",
     {
@@ -39,7 +62,7 @@ export async function createBatch(input: {
         p_provider_id: input.providerId,
         p_invoice_keys: input.invoiceKeys,
         p_own_account_id: input.ownAccountId,
-        p_dest_account_id: input.destAccountId,
+        p_dest_account_id: destAccountId,
         p_fecha_pago: input.fechaPago,
         p_descripcion: input.descripcion,
         p_user_id: userId,
@@ -67,6 +90,9 @@ export async function createBatch(input: {
   }
   if (result.error === "INCONSISTENT_MULTI_FLAG") {
     return { ok: false, error: "Seleccionaste facturas de un solo proveedor pero marcaste el lote como multi-proveedor." };
+  }
+  if (result.error === "DESTINATION_ACCOUNT_NOT_FOUND") {
+    return { ok: false, error: "Este proveedor no tiene una cuenta bancaria principal activa registrada." };
   }
   if (result.error) return { ok: false, error: result.error };
 
