@@ -3,6 +3,7 @@ import { AlertCircle, CheckCircle2, HelpCircle, Inbox, Info, Search } from "luci
 import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
 import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-table";
+import { ErpSinCorreoTable } from "@/components/conciliacion/erp-sin-correo-table";
 import { ExcluidasTab } from "@/components/conciliacion/excluidas-tab";
 import {
   getReconciled,
@@ -177,53 +178,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         <CorreoSinErpTable rows={emailWithoutErp.rows} />
       );
     } else if (tab === "erp-sin-correo") {
-      content = (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-parchment text-left text-xs font-semibold uppercase tracking-wide text-stone">
-              <tr>
-                <th className="px-6 py-3">Proveedor (ERP)</th>
-                <th className="px-4 py-3">Número</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Valor</th>
-                <th className="px-6 py-3">Vencimiento</th>
-              </tr>
-            </thead>
-            <tbody>
-              {erpWithoutEmail.rows.map((row) => {
-                const nc = row.valor_total_erp < 0;
-                return (
-                  <tr key={row.invoice_key} className="border-b border-line last:border-0 hover:bg-cream/30">
-                    <td className="px-6 py-3 font-semibold text-ink">{humanizeProviderName(row.nombre_proveedor_erp)}</td>
-                    <td className="num px-4 py-3">
-                      {nc && (
-                        <span
-                          className="mr-1.5 inline-flex items-center rounded-full bg-red-deep px-1.5 py-0.5 font-semibold text-white"
-                          style={{ fontSize: 8.5 }}
-                        >
-                          NC
-                        </span>
-                      )}
-                      {row.num_factura}
-                    </td>
-                    <td className="px-4 py-3 text-stone" style={{ textTransform: "capitalize" }}>{row.estado_erp}</td>
-                    <td
-                      className="num px-4 py-3 text-right"
-                      style={nc ? { color: "var(--color-red-deep)", fontWeight: 700 } : undefined}
-                    >
-                      {nc ? "−" : ""}
-                      {formatCurrency(Math.abs(row.valor_total_erp))}
-                    </td>
-                    <td className="date px-6 py-3">{row.fecha_vencimiento_erp ? formatDateEs(row.fecha_vencimiento_erp) : "—"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {erpWithoutEmail.rows.length === 0 && (
-            <EmptyState icon={<HelpCircle size={48} />} text="Todas las facturas del ERP tienen su XML recibido por correo." />
-          )}
-        </div>
+      content = erpWithoutEmail.rows.length === 0 ? (
+        <EmptyState icon={<HelpCircle size={48} />} text="Todas las facturas del ERP tienen su XML recibido por correo." />
+      ) : (
+        <ErpSinCorreoTable rows={erpWithoutEmail.rows} />
       );
     } else if (tab === "alertas") {
       content = (

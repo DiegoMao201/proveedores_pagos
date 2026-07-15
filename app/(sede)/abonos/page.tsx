@@ -8,7 +8,8 @@ export default async function AbonosSedePage() {
   let dataError = false;
   try {
     abonos = await getMisSedeAbonos();
-  } catch {
+  } catch (error) {
+    console.error("[abonos] getMisSedeAbonos failed:", error);
     dataError = true;
   }
 

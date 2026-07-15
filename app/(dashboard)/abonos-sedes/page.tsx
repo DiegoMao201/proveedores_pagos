@@ -39,6 +39,7 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
   try {
     abonos = await getAllSedeAbonos(filters);
   } catch (error) {
+    console.error("[abonos-sedes] getAllSedeAbonos failed:", error);
     dataError = error instanceof Error ? error.message : "Error desconocido";
   }
 

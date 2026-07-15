@@ -61,6 +61,10 @@ export interface ErpWithoutEmailRow {
   estado_erp: "pendiente" | "saldada";
   categoria_proveedor: string | null;
   nombre_provider: string | null;
+  // Ausente en la variante _mercancia (esa vista solo selecciona columnas
+  // explícitas y siempre representa proveedores 'estrategico', que ya son
+  // pagables) -- por eso es opcional, no viene garantizado en todas las filas.
+  liberada_manualmente?: boolean;
 }
 
 export interface HistoricalCutoffs {
