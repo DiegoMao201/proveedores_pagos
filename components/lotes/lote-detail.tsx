@@ -9,8 +9,10 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, formatDateEs, formatDateRelative, humanizeProviderName } from "@/lib/format";
 import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount } from "@/lib/lotes-actions";
 import { AddInvoicesModal } from "@/components/lotes/add-invoices-modal";
+import { AbonosLoteCard } from "@/components/lotes/abonos-lote-card";
 import type { BatchSummaryRow } from "@/lib/batch-data";
 import type { BatchProviderBreakdownRow, BatchItemDetailRow, BatchAuditLogRow, BatchDiscrepancyRow } from "@/lib/lotes-data";
+import type { SedeAbonoRow } from "@/lib/sede-abono-data";
 
 const ESTADO_LABELS: Record<string, { label: string; bg: string; color: string }> = {
   draft: { label: "Borrador", bg: "var(--color-cream-soft)", color: "var(--color-orange)" },
@@ -213,6 +215,8 @@ export function LoteDetail({
   auditLog,
   discrepancy,
   canEdit,
+  abonosDisponibles,
+  abonosAplicados,
 }: {
   batch: BatchSummaryRow;
   breakdown: BatchProviderBreakdownRow[];
@@ -220,6 +224,8 @@ export function LoteDetail({
   auditLog: BatchAuditLogRow[];
   discrepancy: BatchDiscrepancyRow[];
   canEdit: boolean;
+  abonosDisponibles: SedeAbonoRow[];
+  abonosAplicados: SedeAbonoRow[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -350,12 +356,32 @@ export function LoteDetail({
               <p className="num text-orange" style={{ fontSize: 13, fontWeight: 700 }}>−{formatFull(batch.valor_retencion)}</p>
             </div>
             <div>
-              <p className="text-red-deep" style={{ fontSize: 9, fontWeight: 800 }}>NETO</p>
+              <p className="text-red-deep" style={{ fontSize: 9, fontWeight: 800 }}>{batch.valor_abonos_aplicados > 0 ? "NETO FACTURAS" : "NETO"}</p>
               <p className="num text-red-deep" style={{ fontSize: 16, fontWeight: 800 }}>{formatFull(batch.valor_neto)}</p>
             </div>
           </div>
         </div>
+        {batch.valor_abonos_aplicados > 0 && (
+          <div className="mt-3 flex items-center justify-between rounded-md px-3 py-2" style={{ background: "var(--color-success-soft)" }}>
+            <p className="text-success" style={{ fontSize: 11, fontWeight: 700 }}>
+              − {formatFull(batch.valor_abonos_aplicados)} ya consignados por sede
+            </p>
+            <p className="text-success" style={{ fontSize: 13, fontWeight: 900 }}>
+              A transferir por banco: {formatFull(batch.valor_a_transferir)}
+            </p>
+          </div>
+        )}
       </Card>
+
+      {!esMultiproveedor && (abonosDisponibles.length > 0 || abonosAplicados.length > 0) && (
+        <AbonosLoteCard
+          batchId={batch.id}
+          codigoLote={batch.codigo_lote}
+          editable={editableItems}
+          abonosDisponibles={abonosDisponibles}
+          abonosAplicados={abonosAplicados}
+        />
+      )}
 
       {!esMultiproveedor && (
         <Card>

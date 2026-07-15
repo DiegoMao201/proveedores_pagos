@@ -1,4 +1,4 @@
-import { AppRole } from "@/lib/tokens";
+import { AppRole, Sede } from "@/lib/tokens";
 import "next-auth";
 import "next-auth/jwt";
 
@@ -11,6 +11,7 @@ declare module "next-auth" {
       id: string;
       email: string;
       role: AppRole;
+      sede?: Sede | null;
       name?: string | null;
     };
   }
@@ -19,6 +20,7 @@ declare module "next-auth" {
     id: string;
     email: string;
     role: AppRole;
+    sede?: Sede | null;
     name?: string | null;
   }
 }
@@ -29,6 +31,7 @@ declare module "next-auth/jwt" {
     refreshToken?: string;
     accessTokenExpires?: number;
     appRole?: AppRole;
+    sede?: Sede | null;
     userId?: string;
     error?: "RefreshAccessTokenError";
   }

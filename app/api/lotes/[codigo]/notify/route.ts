@@ -137,7 +137,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
   // Gerencia ya no recibe copia de cada notificación individual -- en vez de
   // eso recibe un único correo con el resumen consolidado de TODO el lote
   // (allBreakdown, no solo los proveedores seleccionados para notificar hoy)
-  // para que el total coincida con lo que realmente salió del banco.
+  // para que el total coincida con lo que realmente salió del banco. Cuando
+  // hay abonos de sede aplicados (hoy solo Pintuco), total_transferido_banco
+  // ya viene descontado de esos abonos -- eso es literalmente "lo que
+  // realmente salió del banco", no total_neto (que es el valor de la
+  // factura, sin importar por qué canal se pagó).
   const gerenciaHtml = renderBatchSummaryTemplate({
     codigoLote: batch.codigo_lote,
     fechaAplicacion: formatDateEs(batch.fecha_pago_programada),
@@ -148,15 +152,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ codigo:
       valorBruto: b.total_bruto_facturas,
       descuento: b.total_descuento,
       retenciones: b.total_retenciones,
-      valorNeto: b.total_neto,
+      valorNeto: b.total_transferido_banco,
     })),
     totalBruto: allBreakdown.reduce((s, b) => s + b.total_bruto_facturas, 0),
     totalDescuento: allBreakdown.reduce((s, b) => s + b.total_descuento, 0),
     totalRetenciones: allBreakdown.reduce((s, b) => s + b.total_retenciones, 0),
-    totalNeto: allBreakdown.reduce((s, b) => s + b.total_neto, 0),
+    totalNeto: allBreakdown.reduce((s, b) => s + b.total_transferido_banco, 0),
+    totalAbonosAplicados: allBreakdown.reduce((s, b) => s + b.valor_abonos_aplicados, 0),
   });
   const gerenciaSubjectPrefix = modoPrueba ? "[PRUEBA] " : "";
-  const gerenciaSubject = `${gerenciaSubjectPrefix}Ferreinox — Lote ${batch.codigo_lote} pagado — ${formatFull(allBreakdown.reduce((s, b) => s + b.total_neto, 0))}`;
+  const gerenciaSubject = `${gerenciaSubjectPrefix}Ferreinox — Lote ${batch.codigo_lote} pagado — ${formatFull(allBreakdown.reduce((s, b) => s + b.total_transferido_banco, 0))}`;
   const gerenciaDestinatario = modoPrueba ? testEmail : "gerencia@ferreinox.co";
 
   try {

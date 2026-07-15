@@ -9,6 +9,7 @@ import {
   verifyRefreshToken,
   ACCESS_TOKEN_TTL_SECONDS,
   type AppRole,
+  type Sede,
 } from "@/lib/tokens";
 
 const POSTGREST_URL = process.env.POSTGREST_URL;
@@ -50,7 +51,7 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
     const revokedRows = (await revokedCheck.json()) as Array<{ jti: string }>;
     if (revokedRows.length > 0) throw new Error("Refresh token revocado");
 
-    const newAccessToken = await signAccessToken(claims.user_id, (token.email as string) ?? "", claims.app_role);
+    const newAccessToken = await signAccessToken(claims.user_id, (token.email as string) ?? "", claims.app_role, claims.sede);
 
     return {
       ...token,
@@ -91,6 +92,7 @@ interface LoginLookupRow {
   role: AppRole;
   active: boolean;
   full_name: string | null;
+  sede: Sede | null;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -109,7 +111,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!email || !password) return null;
 
         const res = await postgrestAnonFetch(
-          `/v_login_lookup?email=eq.${encodeURIComponent(email)}&select=id,email,password_hash,role,active,full_name`,
+          `/v_login_lookup?email=eq.${encodeURIComponent(email)}&select=id,email,password_hash,role,active,full_name,sede`,
           {},
           "auth"
         );
@@ -122,7 +124,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const valid = await bcrypt.compare(password, user.password_hash);
         if (!valid) return null;
 
-        return { id: user.id, email: user.email, role: user.role, name: user.full_name ?? undefined };
+        return { id: user.id, email: user.email, role: user.role, name: user.full_name ?? undefined, sede: user.sede };
       },
     }),
   ],
@@ -133,12 +135,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // PostgREST (ver lib/tokens.ts).
       if (user) {
         const appRole = user.role;
-        const accessToken = await signAccessToken(user.id, user.email as string, appRole);
-        const { token: refreshToken } = await signRefreshToken(user.id, appRole);
+        const sede = user.sede;
+        const accessToken = await signAccessToken(user.id, user.email as string, appRole, sede);
+        const { token: refreshToken } = await signRefreshToken(user.id, appRole, sede);
         token.accessToken = accessToken;
         token.refreshToken = refreshToken;
         token.accessTokenExpires = Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000;
         token.appRole = appRole;
+        token.sede = sede;
         token.userId = user.id;
         token.name = user.name;
         token.error = undefined;
@@ -173,6 +177,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.refreshToken = token.refreshToken ?? "";
       session.user.id = token.userId ?? "";
       session.user.role = token.appRole ?? "gerencia";
+      session.user.sede = token.sede ?? null;
       session.user.name = token.name ?? null;
       session.error = token.error;
       return session;

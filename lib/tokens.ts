@@ -5,13 +5,15 @@ import { SignJWT, jwtVerify } from "jose";
 // from "crypto"` (modulo de Node, no soportado en Edge -- el middleware corre
 // en Edge Runtime por defecto). Encontrado por el propio warning de build.
 
-export type AppRole = "admin" | "tesoreria" | "contabilidad" | "gerencia";
+export type AppRole = "admin" | "tesoreria" | "contabilidad" | "gerencia" | "sede";
+export type Sede = "Manizales" | "Armenia" | "Pereira";
 
 export interface AccessTokenClaims {
   role: "web_authenticated";
   app_role: AppRole;
   user_id: string;
   email: string;
+  sede?: Sede | null;
 }
 
 export interface RefreshTokenClaims {
@@ -19,6 +21,7 @@ export interface RefreshTokenClaims {
   app_role: AppRole;
   user_id: string;
   jti: string;
+  sede?: Sede | null;
 }
 
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
@@ -32,17 +35,17 @@ function getSecretKey(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-export async function signAccessToken(userId: string, email: string, appRole: AppRole): Promise<string> {
-  return new SignJWT({ role: "web_authenticated", app_role: appRole, user_id: userId, email } satisfies AccessTokenClaims)
+export async function signAccessToken(userId: string, email: string, appRole: AppRole, sede?: Sede | null): Promise<string> {
+  return new SignJWT({ role: "web_authenticated", app_role: appRole, user_id: userId, email, sede: sede ?? null } satisfies AccessTokenClaims)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${ACCESS_TOKEN_TTL_SECONDS}s`)
     .sign(getSecretKey());
 }
 
-export async function signRefreshToken(userId: string, appRole: AppRole): Promise<{ token: string; jti: string }> {
+export async function signRefreshToken(userId: string, appRole: AppRole, sede?: Sede | null): Promise<{ token: string; jti: string }> {
   const jti = crypto.randomUUID();
-  const token = await new SignJWT({ role: "web_authenticated", app_role: appRole, user_id: userId, jti } satisfies RefreshTokenClaims)
+  const token = await new SignJWT({ role: "web_authenticated", app_role: appRole, user_id: userId, jti, sede: sede ?? null } satisfies RefreshTokenClaims)
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${REFRESH_TOKEN_TTL_SECONDS}s`)

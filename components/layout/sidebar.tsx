@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus, Wallet } from "lucide-react";
+import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus, Wallet, Landmark } from "lucide-react";
 import { cn } from "@/lib/cn";
+import type { AppRole } from "@/lib/tokens";
 
 const NAV_SECTIONS = [
   {
@@ -18,6 +19,7 @@ const NAV_SECTIONS = [
       { href: "/notas-credito", label: "Notas crédito", icon: FileMinus },
       { href: "/rebate/pintuco", label: "Rebate", icon: TrendingUp },
       { href: "/lotes", label: "Lotes", icon: Layers },
+      { href: "/abonos-sedes", label: "Abonos sedes", icon: Landmark },
     ],
   },
   {
@@ -31,8 +33,12 @@ const NAV_SECTIONS = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ role }: { role?: AppRole }) {
   const pathname = usePathname();
+  const sections = NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => item.href !== "/abonos-sedes" || ["admin", "tesoreria", "contabilidad"].includes(role ?? "")),
+  }));
 
   return (
     <nav
@@ -55,7 +61,7 @@ export function Sidebar() {
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {NAV_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <div key={section.label}>
             <p
               className="text-stone"

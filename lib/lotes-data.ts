@@ -44,6 +44,8 @@ export interface BatchProviderBreakdownRow {
   total_descuento: number;
   total_retenciones: number;
   total_neto: number;
+  valor_abonos_aplicados: number;
+  total_transferido_banco: number;
   bank_account_id: number | null;
   cuenta_destino: string | null;
   banco_destino_codigo: number | null;

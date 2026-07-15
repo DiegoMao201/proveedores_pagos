@@ -1,19 +1,24 @@
 import Link from "next/link";
-import { Wallet, GitMerge, Settings, LogOut } from "lucide-react";
+import { Wallet, GitMerge, Settings, Landmark, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { auth } from "@/auth";
 
-const ITEMS = [
-  { href: "/cartera/pendiente", label: "Cartera", icon: Wallet },
-  { href: "/conciliacion", label: "Conciliación", icon: GitMerge },
-  { href: "/ajustes", label: "Ajustes", icon: Settings },
-];
+export default async function MasPage() {
+  const session = await auth();
+  const canManageAbonos = session?.user.role ? ["admin", "tesoreria", "contabilidad"].includes(session.user.role) : false;
 
-export default function MasPage() {
+  const items = [
+    { href: "/cartera/pendiente", label: "Cartera", icon: Wallet },
+    { href: "/conciliacion", label: "Conciliación", icon: GitMerge },
+    ...(canManageAbonos ? [{ href: "/abonos-sedes", label: "Abonos sedes", icon: Landmark }] : []),
+    { href: "/ajustes", label: "Ajustes", icon: Settings },
+  ];
+
   return (
     <div className="flex flex-col gap-2">
       <h1 className="text-xl font-bold text-ink">Más</h1>
       <Card className="!p-0 overflow-hidden">
-        {ITEMS.map((item) => {
+        {items.map((item) => {
           const Icon = item.icon;
           return (
             <Link

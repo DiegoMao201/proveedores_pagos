@@ -19,6 +19,7 @@ export interface BatchSummaryParams {
   totalDescuento: number;
   totalRetenciones: number;
   totalNeto: number;
+  totalAbonosAplicados?: number;
 }
 
 const NAVY = "#0d2340";
@@ -114,11 +115,15 @@ export function renderBatchSummaryTemplate(p: BatchSummaryParams): string {
                   <td style="padding:2px 20px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:${GOLD};">Retenciones aplicadas</td>
                   <td style="padding:2px 20px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:${GOLD};text-align:right;font-weight:600;">−${formatFull(p.totalRetenciones)}</td>
                 </tr>` : ""}
+                ${p.totalAbonosAplicados && p.totalAbonosAplicados > 0 ? `<tr>
+                  <td style="padding:2px 20px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:${GREEN};">Abonos ya consignados por sede</td>
+                  <td style="padding:2px 20px;font-family:Arial,Helvetica,sans-serif;font-size:12.5px;color:${GREEN};text-align:right;font-weight:600;">−${formatFull(p.totalAbonosAplicados)}</td>
+                </tr>` : ""}
                 <tr>
                   <td colspan="2" style="padding:10px 20px;"><div style="border-top:1px solid #ecdca0;"></div></td>
                 </tr>
                 <tr>
-                  <td style="padding:2px 20px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;color:${RED_DEEP};">Total neto pagado</td>
+                  <td style="padding:2px 20px 16px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;color:${RED_DEEP};">Total transferido por banco</td>
                   <td style="padding:2px 20px 16px;font-family:Arial,Helvetica,sans-serif;font-size:20px;font-weight:900;color:${RED_DEEP};text-align:right;">${formatFull(p.totalNeto)}</td>
                 </tr>
               </table>

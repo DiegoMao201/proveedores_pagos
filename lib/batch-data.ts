@@ -70,6 +70,8 @@ export interface BatchSummaryRow {
   valor_descuento: number;
   valor_retencion: number;
   valor_neto: number;
+  valor_abonos_aplicados: number;
+  valor_a_transferir: number;
   ahorro_perdido: number;
   cuenta_debito: string | null;
   banco_debito_codigo: number | null;

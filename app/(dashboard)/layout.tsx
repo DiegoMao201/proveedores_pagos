@@ -11,6 +11,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   if (!session || session.error === "RefreshAccessTokenError") {
     redirect("/login");
   }
+  if (session.user.role === "sede") {
+    redirect("/abonos");
+  }
 
   async function handleSignOut() {
     "use server";
@@ -26,7 +29,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       </div>
       <MobileHeader userInitial={userInitial} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <Sidebar role={session.user.role} />
         <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           <div className="mx-auto max-w-[1440px] p-3 md:p-4">{children}</div>
         </main>
