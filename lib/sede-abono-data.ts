@@ -70,13 +70,19 @@ export async function getSedeAbonoComprobante(abonoId: number): Promise<{ conten
 }
 
 export async function getPintucoProviderId(): Promise<number> {
+  // El rol 'sede' no tiene acceso al esquema providers en absoluto (a
+  // proposito), asi que un SELECT directo a providers.provider siempre le
+  // devolvia "permission denied for schema providers" (0 filas, visto como
+  // "proveedor no encontrado") cuando una sede reportaba un abono. Esta
+  // RPC SECURITY DEFINER expone unicamente el id de Pintuco, nada mas del
+  // esquema, y es la unica via que 'sede' puede usar.
   const res = await postgrestFetch(
-    `/provider?nombre_normalizado=eq.PINTUCOCOLOMBIASAS&select=id`,
-    {},
+    "/rpc/get_pintuco_provider_id",
+    { method: "POST", body: "{}" },
     "providers"
   );
-  if (!res.ok) throw new Error(`PostgREST /provider -> HTTP ${res.status}: ${await res.text()}`);
-  const rows = (await res.json()) as { id: number }[];
-  if (!rows[0]) throw new Error("No se encontró el proveedor Pintuco (nombre_normalizado=PINTUCOCOLOMBIASAS)");
-  return rows[0].id;
+  if (!res.ok) throw new Error(`PostgREST rpc/get_pintuco_provider_id -> HTTP ${res.status}: ${await res.text()}`);
+  const id = (await res.json()) as number | null;
+  if (!id) throw new Error("No se encontró el proveedor Pintuco (nombre_normalizado=PINTUCOCOLOMBIASAS)");
+  return id;
 }
