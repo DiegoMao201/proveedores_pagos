@@ -11,6 +11,14 @@ export default async function SedeLayout({ children }: { children: ReactNode }) 
   if (session.user.role !== "sede") {
     redirect("/");
   }
+  // Defensa contra sesiones viejas creadas antes de que el claim "sede"
+  // existiera en el JWT (rol ya venía correcto, pero sede quedaba vacío) --
+  // en vez de dejar que el formulario falle confusamente al enviar
+  // ("Solo un usuario de sede puede reportar abonos"), se fuerza a volver a
+  // iniciar sesión para regenerar el token completo.
+  if (!session.user.sede) {
+    await signOut({ redirectTo: "/login" });
+  }
 
   async function handleSignOut() {
     "use server";
