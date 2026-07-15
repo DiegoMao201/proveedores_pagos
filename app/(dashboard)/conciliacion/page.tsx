@@ -6,6 +6,8 @@ import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-tabl
 import { ErpSinCorreoTable } from "@/components/conciliacion/erp-sin-correo-table";
 import { PagosParcialesTable } from "@/components/conciliacion/pagos-parciales-table";
 import { getPartialPaymentStatus } from "@/lib/partial-payment-data";
+import { RetencionNoConfiguradaTable } from "@/components/conciliacion/retencion-no-configurada-table";
+import { getRetencionesNoConfiguradas } from "@/lib/retention-suggestion-data";
 import { ExcluidasTab } from "@/components/conciliacion/excluidas-tab";
 import {
   getReconciled,
@@ -67,8 +69,9 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   }
 
   let dataError: string | null = null;
-  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0, pagosParciales: 0 };
+  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0, pagosParciales: 0, retencionesSinConfigurar: 0 };
   let partialPayments: Awaited<ReturnType<typeof getPartialPaymentStatus>> = [];
+  let retencionesSinConfigurar: Awaited<ReturnType<typeof getRetencionesNoConfiguradas>> = [];
   let kpis: {
     conciliadas: number;
     conciliadas_sin_diferencia: number;
@@ -83,7 +86,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   let cutoffs: Awaited<ReturnType<typeof getHistoricalCutoffs>> | null = null;
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult, partialPaymentsResult] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult, partialPaymentsResult, retencionesSinConfigurarResult] = await Promise.all([
       soloMercancia
         ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters)
         : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters),
@@ -99,15 +102,18 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       getExcludedInvoices(),
       getHistoricalCutoffs(),
       getPartialPaymentStatus(),
+      getRetencionesNoConfiguradas(),
     ]);
 
     partialPayments = partialPaymentsResult;
+    retencionesSinConfigurar = retencionesSinConfigurarResult;
     counts = {
       conciliadas: reconciled.total,
       correoSinErp: emailWithoutErp.total,
       erpSinCorreo: erpWithoutEmail.total,
       alertas: alerts.length,
       pagosParciales: partialPaymentsResult.filter((p) => p.estado_conciliacion !== "conciliado").length,
+      retencionesSinConfigurar: retencionesSinConfigurarResult.length,
     };
     kpis = kpisResult;
     diffs = diffsResult;
@@ -253,6 +259,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         <EmptyState icon={<CheckCircle2 size={48} />} text="No hay pagos parciales registrados." />
       ) : (
         <PagosParcialesTable rows={partialPayments} />
+      );
+    } else if (tab === "retencion-sin-configurar") {
+      content = retencionesSinConfigurar.length === 0 ? (
+        <EmptyState icon={<CheckCircle2 size={48} />} text="No se detectaron retenciones sin configurar." />
+      ) : (
+        <RetencionNoConfiguradaTable rows={retencionesSinConfigurar} />
       );
     }
   } catch (error) {
@@ -441,6 +453,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 { key: "conciliadas", label: "Conciliadas", count: counts.conciliadas },
                 { key: "excluidas", label: "Excluidas", count: excludedInvoices.length },
                 { key: "pagos-parciales", label: "Pagos parciales", count: counts.pagosParciales },
+                { key: "retencion-sin-configurar", label: "Retención sin configurar", count: counts.retencionesSinConfigurar },
               ]}
             />
             {content}
