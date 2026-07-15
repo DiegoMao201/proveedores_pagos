@@ -15,7 +15,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const comprobante = await getSedeAbonoComprobante(abonoId);
   if (!comprobante) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
 
-  const bytes = Buffer.from(comprobante.contenido, "base64");
+  // PostgREST devuelve bytea en el formato hex de Postgres ("\x..."), no base64.
+  const hex = comprobante.contenido.startsWith("\\x") ? comprobante.contenido.slice(2) : comprobante.contenido;
+  const bytes = Buffer.from(hex, "hex");
   return new NextResponse(bytes, {
     headers: {
       "Content-Type": comprobante.mime,

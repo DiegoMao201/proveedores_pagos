@@ -34,7 +34,12 @@ export async function reportarSedeAbono(formData: FormData): Promise<{ ok: boole
 
   const providerId = await getPintucoProviderId();
   const bytes = await comprobante.arrayBuffer();
-  const base64 = Buffer.from(bytes).toString("base64");
+  // PostgREST expone/espera bytea en el formato hex de Postgres ("\x..."),
+  // NO base64 -- confirmado con una prueba real contra el PostgREST de
+  // producción: un valor base64 se guarda tal cual como bytes literales del
+  // string (corrompiendo el archivo), mientras que "\x" + hex hace un
+  // roundtrip exacto.
+  const hex = `\\x${Buffer.from(bytes).toString("hex")}`;
 
   const res = await postgrestFetch(
     "/sede_abono",
@@ -47,7 +52,7 @@ export async function reportarSedeAbono(formData: FormData): Promise<{ ok: boole
         valor,
         numero_referencia: typeof numeroReferencia === "string" && numeroReferencia.trim() ? numeroReferencia.trim() : null,
         observaciones: typeof observaciones === "string" && observaciones.trim() ? observaciones.trim() : null,
-        comprobante_contenido: base64,
+        comprobante_contenido: hex,
         comprobante_mime: comprobante.type,
         created_by: user.id,
       }),
