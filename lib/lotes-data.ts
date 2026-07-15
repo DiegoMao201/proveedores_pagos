@@ -103,6 +103,9 @@ export interface BatchItemDetailRow {
   valor_neto: number;
   tipo_documento: "factura" | "nota_credito";
   descuento_manual: boolean;
+  es_pago_parcial: boolean;
+  valor_neto_original: number | null;
+  motivo_pago_parcial: string | null;
 }
 
 export async function getBatchItemsDetail(batchId: number): Promise<BatchItemDetailRow[]> {

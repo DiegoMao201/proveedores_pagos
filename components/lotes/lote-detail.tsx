@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ChevronRight, AlertTriangle, Download, XCircle, CheckCircle2, Send, Plus, Trash2, Pencil } from "lucide-react";
+import { ChevronDown, ChevronRight, AlertTriangle, Download, XCircle, CheckCircle2, Send, Plus, Trash2, Pencil, Split, Undo2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, formatDateEs, formatDateRelative, humanizeProviderName } from "@/lib/format";
-import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount } from "@/lib/lotes-actions";
+import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount, revertPartialPayment } from "@/lib/lotes-actions";
 import { AddInvoicesModal } from "@/components/lotes/add-invoices-modal";
 import { AbonosLoteCard } from "@/components/lotes/abonos-lote-card";
+import { PagoParcialModal } from "@/components/lotes/pago-parcial-modal";
 import type { BatchSummaryRow } from "@/lib/batch-data";
 import type { BatchProviderBreakdownRow, BatchItemDetailRow, BatchAuditLogRow, BatchDiscrepancyRow } from "@/lib/lotes-data";
 import type { SedeAbonoRow } from "@/lib/sede-abono-data";
@@ -29,6 +30,8 @@ const EVENT_LABELS: Record<string, string> = {
   BATCH_ITEMS_ADDED: "Facturas agregadas",
   BATCH_ITEM_REMOVED: "Factura quitada",
   BATCH_ITEM_DISCOUNT_OVERRIDDEN: "Descuento ajustado manualmente",
+  BATCH_ITEM_PARTIAL_PAYMENT_APPLIED: "Pago parcial aplicado",
+  BATCH_ITEM_PARTIAL_PAYMENT_REVERTED: "Pago parcial revertido",
 };
 
 function DiscountCell({
@@ -101,14 +104,22 @@ function DiscountCell({
 function ItemsTable({
   items,
   editable,
+  batchId,
+  codigoLote,
   onRemove,
   onOverrideDiscount,
+  onRevertPartial,
 }: {
   items: BatchItemDetailRow[];
   editable: boolean;
+  batchId: number;
+  codigoLote: string;
   onRemove: (item: BatchItemDetailRow) => void;
   onOverrideDiscount: (itemId: number, value: number) => Promise<boolean>;
+  onRevertPartial: (item: BatchItemDetailRow) => void;
 }) {
+  const [pagoParcialItem, setPagoParcialItem] = useState<BatchItemDetailRow | null>(null);
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full" style={{ fontSize: 11 }}>
@@ -120,7 +131,7 @@ function ItemsTable({
             <th className="px-3 py-2 text-right">Descuento</th>
             <th className="px-3 py-2 text-right">Retenciones</th>
             <th className="px-3 py-2 text-right">Neto</th>
-            {editable && <th className="px-3 py-2" style={{ width: 30 }}></th>}
+            {editable && <th className="px-3 py-2" style={{ width: 50 }}></th>}
           </tr>
         </thead>
         <tbody>
@@ -138,12 +149,32 @@ function ItemsTable({
                   <DiscountCell item={item} editable={editable} onOverride={onOverrideDiscount} />
                 </td>
                 <td className="num px-3 py-2 text-right text-orange">{retencion > 0 ? `−${formatFull(retencion)}` : "—"}</td>
-                <td className="num px-3 py-2 text-right font-semibold">{formatFull(item.valor_neto)}</td>
+                <td className="num px-3 py-2 text-right font-semibold">
+                  {formatFull(item.valor_neto)}
+                  {item.es_pago_parcial && item.valor_neto_original !== null && (
+                    <p className="text-orange" style={{ fontSize: 9, fontWeight: 700 }}>
+                      Pago parcial — saldo pendiente: {formatFull(item.valor_neto_original - item.valor_neto)}
+                    </p>
+                  )}
+                </td>
                 {editable && (
                   <td className="px-3 py-2 text-right">
-                    <button type="button" onClick={() => onRemove(item)} className="text-stone hover:text-red-deep" title="Quitar del lote">
-                      <Trash2 size={13} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      {!esNC && (
+                        item.es_pago_parcial ? (
+                          <button type="button" onClick={() => onRevertPartial(item)} className="text-stone hover:text-red-deep" title="Revertir pago parcial">
+                            <Undo2 size={13} />
+                          </button>
+                        ) : (
+                          <button type="button" onClick={() => setPagoParcialItem(item)} className="text-stone hover:text-red-deep" title="Pago parcial">
+                            <Split size={13} />
+                          </button>
+                        )
+                      )}
+                      <button type="button" onClick={() => onRemove(item)} className="text-stone hover:text-red-deep" title="Quitar del lote">
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>
@@ -151,6 +182,18 @@ function ItemsTable({
           })}
         </tbody>
       </table>
+
+      {pagoParcialItem && (
+        <PagoParcialModal
+          open={true}
+          onClose={() => setPagoParcialItem(null)}
+          batchId={batchId}
+          itemId={pagoParcialItem.id}
+          codigoLote={codigoLote}
+          numFactura={pagoParcialItem.num_factura}
+          valorNeto={pagoParcialItem.valor_neto}
+        />
+      )}
     </div>
   );
 }
@@ -270,6 +313,19 @@ export function LoteDetail({
     }
     showToast({ kind: "error", message: result.error ?? "No se pudo actualizar el descuento." });
     return false;
+  }
+
+  function handleRevertPartial(item: BatchItemDetailRow) {
+    if (!window.confirm(`¿Revertir el pago parcial de la factura ${item.num_factura}? Volverá al neto completo original.`)) return;
+    startTransition(async () => {
+      const result = await revertPartialPayment(batch.id, item.id, batch.codigo_lote);
+      if (result.ok) {
+        showToast({ kind: "success", message: "Pago parcial revertido." });
+        router.refresh();
+      } else {
+        showToast({ kind: "error", message: result.error ?? "No se pudo revertir el pago parcial." });
+      }
+    });
   }
 
   function handleExport() {
@@ -474,14 +530,30 @@ export function LoteDetail({
                     )}
                   </div>
                   {!isCollapsed && (
-                    <ItemsTable items={providerItems} editable={editableItems} onRemove={handleRemoveItem} onOverrideDiscount={handleOverrideDiscount} />
+                    <ItemsTable
+                      items={providerItems}
+                      editable={editableItems}
+                      batchId={batch.id}
+                      codigoLote={batch.codigo_lote}
+                      onRemove={handleRemoveItem}
+                      onOverrideDiscount={handleOverrideDiscount}
+                      onRevertPartial={handleRevertPartial}
+                    />
                   )}
                 </div>
               );
             })}
           </div>
         ) : (
-          <ItemsTable items={items} editable={editableItems} onRemove={handleRemoveItem} onOverrideDiscount={handleOverrideDiscount} />
+          <ItemsTable
+            items={items}
+            editable={editableItems}
+            batchId={batch.id}
+            codigoLote={batch.codigo_lote}
+            onRemove={handleRemoveItem}
+            onOverrideDiscount={handleOverrideDiscount}
+            onRevertPartial={handleRevertPartial}
+          />
         )}
       </Card>
 

@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { ConciliacionTabs } from "@/components/conciliacion/conciliacion-tabs";
 import { CorreoSinErpTable } from "@/components/conciliacion/correo-sin-erp-table";
 import { ErpSinCorreoTable } from "@/components/conciliacion/erp-sin-correo-table";
+import { PagosParcialesTable } from "@/components/conciliacion/pagos-parciales-table";
+import { getPartialPaymentStatus } from "@/lib/partial-payment-data";
 import { ExcluidasTab } from "@/components/conciliacion/excluidas-tab";
 import {
   getReconciled,
@@ -65,7 +67,8 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   }
 
   let dataError: string | null = null;
-  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0 };
+  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0, pagosParciales: 0 };
+  let partialPayments: Awaited<ReturnType<typeof getPartialPaymentStatus>> = [];
   let kpis: {
     conciliadas: number;
     conciliadas_sin_diferencia: number;
@@ -80,7 +83,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   let cutoffs: Awaited<ReturnType<typeof getHistoricalCutoffs>> | null = null;
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult, partialPaymentsResult] = await Promise.all([
       soloMercancia
         ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters)
         : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters),
@@ -95,13 +98,16 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       getReconciliationDiffs(),
       getExcludedInvoices(),
       getHistoricalCutoffs(),
+      getPartialPaymentStatus(),
     ]);
 
+    partialPayments = partialPaymentsResult;
     counts = {
       conciliadas: reconciled.total,
       correoSinErp: emailWithoutErp.total,
       erpSinCorreo: erpWithoutEmail.total,
       alertas: alerts.length,
+      pagosParciales: partialPaymentsResult.filter((p) => p.estado_conciliacion !== "conciliado").length,
     };
     kpis = kpisResult;
     diffs = diffsResult;
@@ -242,6 +248,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       );
     } else if (tab === "excluidas") {
       content = <ExcluidasTab rows={excludedInvoices} />;
+    } else if (tab === "pagos-parciales") {
+      content = partialPayments.length === 0 ? (
+        <EmptyState icon={<CheckCircle2 size={48} />} text="No hay pagos parciales registrados." />
+      ) : (
+        <PagosParcialesTable rows={partialPayments} />
+      );
     }
   } catch (error) {
     dataError = error instanceof Error ? error.message : "Error desconocido";
@@ -428,6 +440,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 { key: "erp-sin-correo", label: "ERP sin correo", count: counts.erpSinCorreo },
                 { key: "conciliadas", label: "Conciliadas", count: counts.conciliadas },
                 { key: "excluidas", label: "Excluidas", count: excludedInvoices.length },
+                { key: "pagos-parciales", label: "Pagos parciales", count: counts.pagosParciales },
               ]}
             />
             {content}

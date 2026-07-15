@@ -133,6 +133,59 @@ export async function overrideBatchItemDiscount(
   return { ok: true, valorNeto: result.valor_neto };
 }
 
+export async function applyPartialPayment(
+  batchId: number,
+  itemId: number,
+  valorPagado: number,
+  motivo: string,
+  codigoLote: string
+): Promise<{ ok: boolean; error?: string; saldoPendiente?: number }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+
+  const res = await postgrestFetch(
+    "/rpc/apply_partial_payment",
+    {
+      method: "POST",
+      body: JSON.stringify({ p_batch_id: batchId, p_item_id: itemId, p_valor_pagado: valorPagado, p_user_id: userId, p_motivo: motivo }),
+    },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string; saldo_pendiente?: number };
+  if (result.error === "BATCH_NOT_EDITABLE") return { ok: false, error: "Este lote ya no se puede editar." };
+  if (result.error === "MOTIVO_MUY_CORTO") return { ok: false, error: "El motivo debe tener al menos 10 caracteres." };
+  if (result.error === "ALREADY_PARTIAL") return { ok: false, error: "Esta factura ya tiene un pago parcial aplicado. Revierte el actual antes de aplicar uno nuevo." };
+  if (result.error === "NOT_LESS_THAN_FULL_VALUE") return { ok: false, error: "El valor a pagar debe ser menor al neto completo de la factura." };
+  if (result.error === "ABONOS_EXCEDEN_NUEVO_NETO") return { ok: false, error: "Ese pago parcial dejaría el lote por debajo de los abonos de sede ya aplicados." };
+  if (result.error === "INVALID_VALUE") return { ok: false, error: "Valor inválido." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  return { ok: true, saldoPendiente: result.saldo_pendiente };
+}
+
+export async function revertPartialPayment(batchId: number, itemId: number, codigoLote: string): Promise<{ ok: boolean; error?: string }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+
+  const res = await postgrestFetch(
+    "/rpc/revert_partial_payment",
+    { method: "POST", body: JSON.stringify({ p_batch_id: batchId, p_item_id: itemId, p_user_id: userId }) },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string };
+  if (result.error === "BATCH_NOT_EDITABLE") return { ok: false, error: "Este lote ya no se puede editar." };
+  if (result.error === "NOT_PARTIAL_PAYMENT") return { ok: false, error: "Esta factura no tiene un pago parcial aplicado." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  return { ok: true };
+}
+
 export async function cancelBatch(batchId: number, codigoLote: string, reason: string): Promise<{ ok: boolean; error?: string }> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "NO_SESSION" };
