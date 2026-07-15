@@ -1,9 +1,9 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { Eye, FileSpreadsheet } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatFull, formatDateEs } from "@/lib/format";
-import type { SedeAbonoRow } from "@/lib/sede-abono-data";
+import { TIPO_ORIGEN_LABELS, type SedeAbonoRow } from "@/lib/sede-abono-shared";
 
 const ESTADO_LABELS: Record<string, { label: string; bg: string; color: string }> = {
   disponible: { label: "Disponible", bg: "var(--color-cream-soft)", color: "var(--color-orange)" },
@@ -14,8 +14,15 @@ const ESTADO_LABELS: Record<string, { label: string; bg: string; color: string }
 export function SedeAbonoHistory({ abonos }: { abonos: SedeAbonoRow[] }) {
   return (
     <Card className="!p-0 overflow-hidden">
-      <div className="px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
+      <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
         <p className="text-ink" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>Mis abonos reportados</p>
+        <a
+          href="/api/abonos-sedes/export"
+          className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-graphite hover:border-red-deep hover:text-red-deep"
+          style={{ fontSize: 10.5, fontWeight: 700 }}
+        >
+          <FileSpreadsheet size={12} /> Descargar Excel
+        </a>
       </div>
       {abonos.length === 0 ? (
         <p className="p-4 text-stone" style={{ fontSize: 12 }}>Todavía no has reportado ningún abono.</p>
@@ -24,7 +31,8 @@ export function SedeAbonoHistory({ abonos }: { abonos: SedeAbonoRow[] }) {
           <table className="w-full" style={{ fontSize: 11.5 }}>
             <thead>
               <tr className="border-b border-line bg-parchment text-stone" style={{ fontSize: 9, textTransform: "uppercase" }}>
-                <th className="px-3 py-2 text-left">Fecha</th>
+                <th className="px-3 py-2 text-left">Motivo</th>
+                <th className="px-3 py-2 text-left">Período</th>
                 <th className="px-3 py-2 text-right">Valor</th>
                 <th className="px-3 py-2 text-left">Referencia</th>
                 <th className="px-3 py-2 text-left">Estado</th>
@@ -36,7 +44,10 @@ export function SedeAbonoHistory({ abonos }: { abonos: SedeAbonoRow[] }) {
                 const estado = ESTADO_LABELS[a.estado];
                 return (
                   <tr key={a.id} className="border-b border-line last:border-0">
-                    <td className="date px-3 py-2 text-stone">{formatDateEs(a.fecha_consignacion)}</td>
+                    <td className="px-3 py-2 font-semibold text-ink">{TIPO_ORIGEN_LABELS[a.tipo_origen]}</td>
+                    <td className="date px-3 py-2 text-stone">
+                      {formatDateEs(a.periodo_desde)}{a.periodo_desde !== a.periodo_hasta ? ` — ${formatDateEs(a.periodo_hasta)}` : ""}
+                    </td>
                     <td className="num px-3 py-2 text-right font-semibold text-ink">{formatFull(a.valor)}</td>
                     <td className="px-3 py-2 text-stone">{a.numero_referencia ?? "—"}</td>
                     <td className="px-3 py-2">

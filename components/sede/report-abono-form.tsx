@@ -39,12 +39,27 @@ export function ReportAbonoForm() {
         Registra aquí la plata que consignaste directamente a la cuenta de Pintuco (cuadre de caja, cartera, etc.) en vez de reportarla por WhatsApp.
       </p>
       <form ref={formRef} action={handleSubmit} className="mt-3 flex flex-col gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Motivo de la consignación</span>
+          <select
+            name="tipo_origen"
+            required
+            defaultValue=""
+            className="rounded-md border border-line bg-paper px-3 py-2"
+            style={{ fontSize: 13 }}
+          >
+            <option value="" disabled>Selecciona una opción…</option>
+            <option value="planilla">Planilla (cierre de caja)</option>
+            <option value="recibo_caja">Recibos de caja (abonos a cartera)</option>
+          </select>
+        </label>
+
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Fecha de la consignación</span>
+            <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Período — desde</span>
             <input
               type="date"
-              name="fecha_consignacion"
+              name="periodo_desde"
               required
               defaultValue={todayIso()}
               max={todayIso()}
@@ -53,19 +68,32 @@ export function ReportAbonoForm() {
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Valor consignado</span>
+            <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Período — hasta</span>
             <input
-              type="number"
-              name="valor"
+              type="date"
+              name="periodo_hasta"
               required
-              min={1}
-              step="0.01"
-              placeholder="0"
+              defaultValue={todayIso()}
+              max={todayIso()}
               className="rounded-md border border-line bg-paper px-3 py-2"
               style={{ fontSize: 13 }}
             />
           </label>
         </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Valor consignado</span>
+          <input
+            type="number"
+            name="valor"
+            required
+            min={1}
+            step="0.01"
+            placeholder="0"
+            className="rounded-md border border-line bg-paper px-3 py-2"
+            style={{ fontSize: 13 }}
+          />
+        </label>
 
         <label className="flex flex-col gap-1">
           <span className="text-stone" style={{ fontSize: 10.5, fontWeight: 700 }}>Número de referencia / consignación (opcional)</span>

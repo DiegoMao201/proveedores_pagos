@@ -19,13 +19,18 @@ export async function reportarSedeAbono(formData: FormData): Promise<{ ok: boole
   if (!user) return { ok: false, error: "NO_SESSION" };
   if (user.role !== "sede" || !user.sede) return { ok: false, error: "Solo un usuario de sede puede reportar abonos." };
 
-  const fecha = formData.get("fecha_consignacion");
+  const tipoOrigen = formData.get("tipo_origen");
+  const periodoDesde = formData.get("periodo_desde");
+  const periodoHasta = formData.get("periodo_hasta");
   const valorRaw = formData.get("valor");
   const numeroReferencia = formData.get("numero_referencia");
   const observaciones = formData.get("observaciones");
   const comprobante = formData.get("comprobante");
 
-  if (typeof fecha !== "string" || !fecha) return { ok: false, error: "Falta la fecha de la consignación." };
+  if (tipoOrigen !== "planilla" && tipoOrigen !== "recibo_caja") return { ok: false, error: "Selecciona si es planilla o recibos de caja." };
+  if (typeof periodoDesde !== "string" || !periodoDesde) return { ok: false, error: "Falta la fecha inicial del período." };
+  if (typeof periodoHasta !== "string" || !periodoHasta) return { ok: false, error: "Falta la fecha final del período." };
+  if (periodoHasta < periodoDesde) return { ok: false, error: "La fecha final del período no puede ser anterior a la inicial." };
   const valor = Number(valorRaw);
   if (!Number.isFinite(valor) || valor <= 0) return { ok: false, error: "El valor debe ser mayor a cero." };
   if (!(comprobante instanceof File) || comprobante.size === 0) return { ok: false, error: "Adjunta la foto o PDF del comprobante." };
@@ -48,7 +53,9 @@ export async function reportarSedeAbono(formData: FormData): Promise<{ ok: boole
       body: JSON.stringify({
         provider_id: providerId,
         sede: user.sede,
-        fecha_consignacion: fecha,
+        tipo_origen: tipoOrigen,
+        periodo_desde: periodoDesde,
+        periodo_hasta: periodoHasta,
         valor,
         numero_referencia: typeof numeroReferencia === "string" && numeroReferencia.trim() ? numeroReferencia.trim() : null,
         observaciones: typeof observaciones === "string" && observaciones.trim() ? observaciones.trim() : null,

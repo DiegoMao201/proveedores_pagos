@@ -1,52 +1,40 @@
 import "server-only";
 import { postgrestFetch } from "@/lib/postgrest";
+import { TIPO_ORIGEN_LABELS, type Sede, type SedeAbonoEstado, type SedeAbonoTipoOrigen, type SedeAbonoRow } from "@/lib/sede-abono-shared";
 
-export type Sede = "Manizales" | "Armenia" | "Pereira";
-export type SedeAbonoEstado = "disponible" | "aplicado" | "anulado";
-
-export interface SedeAbonoRow {
-  id: number;
-  provider_id: number;
-  proveedor_nombre: string | null;
-  sede: Sede;
-  fecha_consignacion: string;
-  valor: number;
-  numero_referencia: string | null;
-  observaciones: string | null;
-  comprobante_mime: string;
-  estado: SedeAbonoEstado;
-  batch_id: number | null;
-  codigo_lote: string | null;
-  aplicado_at: string | null;
-  aplicado_por_nombre: string | null;
-  anulado_at: string | null;
-  anulado_motivo: string | null;
-  anulado_por_nombre: string | null;
-  created_at: string;
-  created_by: string;
-  created_by_nombre: string | null;
-}
+export { TIPO_ORIGEN_LABELS };
+export type { Sede, SedeAbonoEstado, SedeAbonoTipoOrigen, SedeAbonoRow };
 
 export async function getMisSedeAbonos(): Promise<SedeAbonoRow[]> {
-  const res = await postgrestFetch("/v_sede_abono?select=*&order=fecha_consignacion.desc,id.desc", {}, "treasury");
+  const res = await postgrestFetch("/v_sede_abono?select=*&order=periodo_desde.desc,id.desc", {}, "treasury");
   if (!res.ok) throw new Error(`PostgREST /v_sede_abono -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
 export interface SedeAbonoFilters {
   sede?: Sede;
+  estado?: SedeAbonoEstado;
+  tipoOrigen?: SedeAbonoTipoOrigen;
   desde?: string;
   hasta?: string;
-  estado?: SedeAbonoEstado;
+}
+
+function buildFilterParams(filters: SedeAbonoFilters): URLSearchParams {
+  const params = new URLSearchParams({ select: "*", order: "periodo_desde.desc,id.desc" });
+  if (filters.sede) params.set("sede", `eq.${filters.sede}`);
+  if (filters.estado) params.set("estado", `eq.${filters.estado}`);
+  if (filters.tipoOrigen) params.set("tipo_origen", `eq.${filters.tipoOrigen}`);
+  // El período de cada abono es un rango (periodo_desde..periodo_hasta), no
+  // una fecha puntual -- filtrar por "desde/hasta" busca cualquier abono
+  // cuyo período se traslape con el rango pedido (interseccion de rangos),
+  // no que caiga exactamente dentro.
+  if (filters.desde) params.set("periodo_hasta", `gte.${filters.desde}`);
+  if (filters.hasta) params.set("periodo_desde", `lte.${filters.hasta}`);
+  return params;
 }
 
 export async function getAllSedeAbonos(filters: SedeAbonoFilters = {}): Promise<SedeAbonoRow[]> {
-  const params = new URLSearchParams({ select: "*", order: "fecha_consignacion.desc,id.desc" });
-  if (filters.sede) params.set("sede", `eq.${filters.sede}`);
-  if (filters.estado) params.set("estado", `eq.${filters.estado}`);
-  if (filters.desde) params.set("fecha_consignacion", `gte.${filters.desde}`);
-  if (filters.hasta) params.append("fecha_consignacion", `lte.${filters.hasta}`);
-
+  const params = buildFilterParams(filters);
   const res = await postgrestFetch(`/v_sede_abono?${params.toString()}`, {}, "treasury");
   if (!res.ok) throw new Error(`PostgREST /v_sede_abono -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
@@ -54,7 +42,7 @@ export async function getAllSedeAbonos(filters: SedeAbonoFilters = {}): Promise<
 
 export async function getAvailableSedeAbonosForProvider(providerId: number): Promise<SedeAbonoRow[]> {
   const res = await postgrestFetch(
-    `/v_sede_abono?provider_id=eq.${providerId}&estado=eq.disponible&select=*&order=fecha_consignacion.asc`,
+    `/v_sede_abono?provider_id=eq.${providerId}&estado=eq.disponible&select=*&order=periodo_desde.asc`,
     {},
     "treasury"
   );
@@ -63,7 +51,7 @@ export async function getAvailableSedeAbonosForProvider(providerId: number): Pro
 }
 
 export async function getAppliedSedeAbonosForBatch(batchId: number): Promise<SedeAbonoRow[]> {
-  const res = await postgrestFetch(`/v_sede_abono?batch_id=eq.${batchId}&select=*&order=fecha_consignacion.asc`, {}, "treasury");
+  const res = await postgrestFetch(`/v_sede_abono?batch_id=eq.${batchId}&select=*&order=periodo_desde.asc`, {}, "treasury");
   if (!res.ok) throw new Error(`PostgREST /v_sede_abono -> HTTP ${res.status}: ${await res.text()}`);
   return res.json();
 }

@@ -7,7 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, formatDateEs } from "@/lib/format";
 import { applySedeAbonosToBatch, unapplySedeAbono } from "@/lib/sede-abono-actions";
-import type { SedeAbonoRow } from "@/lib/sede-abono-data";
+import { TIPO_ORIGEN_LABELS, type SedeAbonoRow } from "@/lib/sede-abono-shared";
+
+function periodoLabel(a: SedeAbonoRow): string {
+  const rango = a.periodo_desde === a.periodo_hasta ? formatDateEs(a.periodo_desde) : `${formatDateEs(a.periodo_desde)} — ${formatDateEs(a.periodo_hasta)}`;
+  return `${TIPO_ORIGEN_LABELS[a.tipo_origen]} · ${rango}`;
+}
 
 export function AbonosLoteCard({
   batchId,
@@ -78,7 +83,7 @@ export function AbonosLoteCard({
             <div key={a.id} className="flex items-center justify-between border-b border-line px-3.5 py-2 last:border-0" style={{ fontSize: 11.5 }}>
               <div>
                 <span className="font-semibold text-ink">{a.sede}</span>{" "}
-                <span className="text-stone">{formatDateEs(a.fecha_consignacion)} {a.numero_referencia ? `· ${a.numero_referencia}` : ""}</span>
+                <span className="text-stone">{periodoLabel(a)} {a.numero_referencia ? `· ${a.numero_referencia}` : ""}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="num text-success font-semibold">−{formatFull(a.valor)}</span>
@@ -106,7 +111,7 @@ export function AbonosLoteCard({
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={selected.has(a.id)} onChange={() => toggle(a.id)} style={{ width: 13, height: 13 }} />
                 <span className="font-semibold text-ink">{a.sede}</span>
-                <span className="text-stone">{formatDateEs(a.fecha_consignacion)} {a.numero_referencia ? `· ${a.numero_referencia}` : ""}</span>
+                <span className="text-stone">{periodoLabel(a)} {a.numero_referencia ? `· ${a.numero_referencia}` : ""}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="num text-ink font-semibold">{formatFull(a.valor)}</span>

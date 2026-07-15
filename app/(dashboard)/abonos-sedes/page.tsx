@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
-import { Eye } from "lucide-react";
+import { Eye, FileSpreadsheet } from "lucide-react";
 import { auth } from "@/auth";
 import { Card } from "@/components/ui/card";
 import { AnularAbonoButton } from "@/components/abonos-sedes/anular-abono-button";
-import { getAllSedeAbonos, type Sede, type SedeAbonoEstado } from "@/lib/sede-abono-data";
+import { getAllSedeAbonos, TIPO_ORIGEN_LABELS, type Sede, type SedeAbonoEstado, type SedeAbonoTipoOrigen } from "@/lib/sede-abono-data";
 import { formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
 
 const SEDES: Sede[] = ["Manizales", "Armenia", "Pereira"];
 const ESTADOS: SedeAbonoEstado[] = ["disponible", "aplicado", "anulado"];
+const TIPOS: SedeAbonoTipoOrigen[] = ["planilla", "recibo_caja"];
 
 const ESTADO_LABELS: Record<string, { label: string; bg: string; color: string }> = {
   disponible: { label: "Disponible", bg: "var(--color-cream-soft)", color: "var(--color-orange)" },
@@ -16,7 +17,7 @@ const ESTADO_LABELS: Record<string, { label: string; bg: string; color: string }
 };
 
 interface PageProps {
-  searchParams: Promise<{ sede?: string; estado?: string; desde?: string; hasta?: string }>;
+  searchParams: Promise<{ sede?: string; estado?: string; tipo?: string; desde?: string; hasta?: string }>;
 }
 
 export default async function AbonosSedesPage({ searchParams }: PageProps) {
@@ -28,6 +29,7 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
   const filters = {
     sede: SEDES.includes(sp.sede as Sede) ? (sp.sede as Sede) : undefined,
     estado: ESTADOS.includes(sp.estado as SedeAbonoEstado) ? (sp.estado as SedeAbonoEstado) : undefined,
+    tipoOrigen: TIPOS.includes(sp.tipo as SedeAbonoTipoOrigen) ? (sp.tipo as SedeAbonoTipoOrigen) : undefined,
     desde: sp.desde,
     hasta: sp.hasta,
   };
@@ -44,15 +46,31 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
   const totalAplicado = abonos.filter((a) => a.estado === "aplicado").reduce((s, a) => s + a.valor, 0);
   const totalGeneral = abonos.filter((a) => a.estado !== "anulado").reduce((s, a) => s + a.valor, 0);
 
+  const exportParams = new URLSearchParams();
+  if (sp.sede) exportParams.set("sede", sp.sede);
+  if (sp.estado) exportParams.set("estado", sp.estado);
+  if (sp.tipo) exportParams.set("tipo", sp.tipo);
+  if (sp.desde) exportParams.set("desde", sp.desde);
+  if (sp.hasta) exportParams.set("hasta", sp.hasta);
+
   return (
     <div className="flex flex-col gap-3">
-      <div>
-        <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
-          Abonos de sedes
-        </h1>
-        <p className="text-stone" style={{ fontSize: 12 }}>
-          Consignaciones directas de Manizales, Armenia y Pereira a proveedores — hoy solo Pintuco.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <h1 className="text-ink" style={{ fontFamily: "var(--font-nunito)", fontWeight: 800, fontSize: 19 }}>
+            Abonos de sedes
+          </h1>
+          <p className="text-stone" style={{ fontSize: 12 }}>
+            Consignaciones directas de Manizales, Armenia y Pereira a proveedores — hoy solo Pintuco.
+          </p>
+        </div>
+        <a
+          href={`/api/abonos-sedes/export?${exportParams.toString()}`}
+          className="flex items-center gap-1.5 rounded-md bg-red-deep px-3.5 py-2 text-white"
+          style={{ fontSize: 12, fontWeight: 800 }}
+        >
+          <FileSpreadsheet size={14} /> Descargar Excel
+        </a>
       </div>
 
       <div className="grid grid-cols-3 gap-2.5">
@@ -82,6 +100,15 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
             </select>
           </div>
           <div>
+            <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Motivo</label>
+            <select name="tipo" defaultValue={sp.tipo ?? ""} className="rounded-md border border-line bg-paper px-2.5 py-1.5" style={{ fontSize: 12 }}>
+              <option value="">Todos</option>
+              {TIPOS.map((t) => (
+                <option key={t} value={t}>{TIPO_ORIGEN_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Estado</label>
             <select name="estado" defaultValue={sp.estado ?? ""} className="rounded-md border border-line bg-paper px-2.5 py-1.5" style={{ fontSize: 12 }}>
               <option value="">Todos</option>
@@ -91,17 +118,17 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Desde</label>
+            <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Período desde</label>
             <input type="date" name="desde" defaultValue={sp.desde ?? ""} className="rounded-md border border-line bg-paper px-2.5 py-1.5" style={{ fontSize: 12 }} />
           </div>
           <div>
-            <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Hasta</label>
+            <label className="mb-1 block text-graphite" style={{ fontSize: 10.5, fontWeight: 700 }}>Período hasta</label>
             <input type="date" name="hasta" defaultValue={sp.hasta ?? ""} className="rounded-md border border-line bg-paper px-2.5 py-1.5" style={{ fontSize: 12 }} />
           </div>
           <button type="submit" className="rounded-md bg-red-deep px-4 py-1.5 text-white" style={{ fontSize: 12, fontWeight: 800 }}>
             Filtrar
           </button>
-          {(sp.sede || sp.estado || sp.desde || sp.hasta) && (
+          {(sp.sede || sp.estado || sp.tipo || sp.desde || sp.hasta) && (
             <a href="/abonos-sedes" className="text-stone" style={{ fontSize: 11, fontWeight: 700 }}>
               Limpiar
             </a>
@@ -117,7 +144,8 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
             <table className="w-full" style={{ fontSize: 11.5 }}>
               <thead>
                 <tr className="border-b border-line bg-parchment text-stone" style={{ fontSize: 9, textTransform: "uppercase" }}>
-                  <th className="px-3 py-2 text-left">Fecha</th>
+                  <th className="px-3 py-2 text-left">Motivo</th>
+                  <th className="px-3 py-2 text-left">Período</th>
                   <th className="px-3 py-2 text-left">Sede</th>
                   <th className="px-3 py-2 text-left">Proveedor</th>
                   <th className="px-3 py-2 text-right">Valor</th>
@@ -132,7 +160,10 @@ export default async function AbonosSedesPage({ searchParams }: PageProps) {
                   const estado = ESTADO_LABELS[a.estado];
                   return (
                     <tr key={a.id} className="border-b border-line last:border-0">
-                      <td className="date px-3 py-2 text-stone">{formatDateEs(a.fecha_consignacion)}</td>
+                      <td className="px-3 py-2 font-semibold text-ink">{TIPO_ORIGEN_LABELS[a.tipo_origen]}</td>
+                      <td className="date px-3 py-2 text-stone">
+                        {formatDateEs(a.periodo_desde)}{a.periodo_desde !== a.periodo_hasta ? ` — ${formatDateEs(a.periodo_hasta)}` : ""}
+                      </td>
                       <td className="px-3 py-2 font-semibold text-ink">{a.sede}</td>
                       <td className="px-3 py-2 text-stone">{a.proveedor_nombre ? humanizeProviderName(a.proveedor_nombre) : "—"}</td>
                       <td className="num px-3 py-2 text-right font-semibold">{formatFull(a.valor)}</td>
