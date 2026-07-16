@@ -113,6 +113,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ codigo:
   const headers: Record<string, string> = {
     "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "Content-Disposition": `attachment; filename="${filename}"`,
+    "Cache-Control": "no-store",
   };
   if (proveedoresPortal.length > 0) {
     headers["X-Proveedores-Via-Portal"] = encodeURIComponent(proveedoresPortal.join(", "));
