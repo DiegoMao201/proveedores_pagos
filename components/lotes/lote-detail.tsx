@@ -154,7 +154,7 @@ function ItemsTable({
                   {formatFull(item.valor_neto)}
                   {item.es_pago_parcial && item.valor_neto_original !== null && (
                     <p className="text-orange" style={{ fontSize: 9, fontWeight: 700 }}>
-                      Pago parcial — saldo pendiente: {formatFull(item.valor_neto_original - item.valor_neto)}
+                      Pago parcial{item.valor_abono_bruto !== null && item.valor_abono_bruto !== item.valor_neto ? ` (abono ${formatFull(item.valor_abono_bruto)})` : ""} — saldo pendiente: {formatFull(item.valor_neto_original - (item.valor_abono_bruto ?? item.valor_neto))}
                     </p>
                   )}
                 </td>

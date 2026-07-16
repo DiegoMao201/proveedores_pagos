@@ -106,6 +106,7 @@ export interface BatchItemDetailRow {
   es_pago_parcial: boolean;
   valor_neto_original: number | null;
   motivo_pago_parcial: string | null;
+  valor_abono_bruto: number | null;
 }
 
 export async function getBatchItemsDetail(batchId: number): Promise<BatchItemDetailRow[]> {
