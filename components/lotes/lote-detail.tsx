@@ -11,6 +11,7 @@ import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount,
 import { AddInvoicesModal } from "@/components/lotes/add-invoices-modal";
 import { AbonosLoteCard } from "@/components/lotes/abonos-lote-card";
 import { PagoParcialModal } from "@/components/lotes/pago-parcial-modal";
+import { SoporteLoteButton } from "@/components/lotes/soporte-lote-button";
 import type { BatchSummaryRow } from "@/lib/batch-data";
 import type { BatchProviderBreakdownRow, BatchItemDetailRow, BatchAuditLogRow, BatchDiscrepancyRow } from "@/lib/lotes-data";
 import type { SedeAbonoRow } from "@/lib/sede-abono-data";
@@ -280,6 +281,7 @@ export function LoteDetail({
   const estado = ESTADO_LABELS[batch.estado];
   const esMultiproveedor = batch.es_multiproveedor;
   const todoPortal = breakdown.length > 0 && breakdown.every((b) => b.medio_pago === "portal_proveedor");
+  const sinCuenta = breakdown.filter((b) => !b.cuenta_destino && b.medio_pago !== "portal_proveedor");
   const editableItems = canEdit && (batch.estado === "draft" || batch.estado === "exported");
 
   function toggleCollapsed(providerId: number) {
@@ -468,6 +470,27 @@ export function LoteDetail({
         </Card>
       )}
 
+      {sinCuenta.length > 0 && (
+        <Card className="border-orange bg-cream-soft">
+          <p className="flex items-center gap-1.5 font-semibold" style={{ fontSize: 11.5, color: "var(--color-orange)" }}>
+            <AlertTriangle size={14} /> Faltan cuentas por registrar
+          </p>
+          <p className="text-stone" style={{ fontSize: 10.5 }}>
+            Estos proveedores no tienen ninguna cuenta bancaria principal registrada. El lote se puede armar y guardar igual —
+            completa la cuenta antes de exportar el PAB para poder pagarles.
+          </p>
+          <ul className="mt-1 flex flex-col gap-0.5">
+            {sinCuenta.map((b) => (
+              <li key={b.proveedor_id} style={{ fontSize: 10.5 }}>
+                <a href={`/proveedores/${b.proveedor_id}`} className="font-semibold text-orange hover:text-red-deep">
+                  {humanizeProviderName(b.proveedor_nombre)}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       {discrepancy.length > 0 && (
         <Card className={discrepancy.some((d) => d.nivel_alerta === "CRITICA") ? "border-red-deep bg-cream" : "border-orange"}>
           <p className="flex items-center gap-1.5 font-semibold" style={{ fontSize: 11.5, color: discrepancy.some((d) => d.nivel_alerta === "CRITICA") ? "var(--color-red-deep)" : "var(--color-orange)" }}>
@@ -512,9 +535,13 @@ export function LoteDetail({
                     <span className="text-stone" style={{ fontSize: 10 }}>
                       {b.num_facturas} facturas{b.num_ncs > 0 ? ` + ${b.num_ncs} NCs` : ""} · Neto {formatFull(b.total_neto)} · ****{b.cuenta_destino?.slice(-4) ?? "----"}
                     </span>
-                    <span className={b.inscrita_bancolombia ? "text-success" : "text-orange"} style={{ fontSize: 9.5 }}>
-                      {b.inscrita_bancolombia ? "✓ inscrita" : "⚠ no inscrita"}
-                    </span>
+                    {!b.cuenta_destino && b.medio_pago !== "portal_proveedor" ? (
+                      <span className="font-semibold text-red-deep" style={{ fontSize: 9.5 }}>⚠ sin cuenta registrada</span>
+                    ) : (
+                      <span className={b.inscrita_bancolombia ? "text-success" : "text-orange"} style={{ fontSize: 9.5 }}>
+                        {b.inscrita_bancolombia ? "✓ inscrita" : "⚠ no inscrita"}
+                      </span>
+                    )}
                     {editableItems && (
                       <button
                         type="button"
@@ -569,6 +596,10 @@ export function LoteDetail({
           {auditLog.length === 0 && <p className="text-stone" style={{ fontSize: 11 }}>Sin eventos registrados.</p>}
         </div>
       </Card>
+
+      <div className="flex justify-end">
+        <SoporteLoteButton codigoLote={batch.codigo_lote} />
+      </div>
 
       {canEdit && batch.estado !== "cancelled" && (
         <div className="flex justify-end gap-2">

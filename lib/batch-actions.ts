@@ -27,7 +27,7 @@ export async function createBatch(input: {
   fechaPago: string;
   descripcion: string;
   esMultiproveedor?: boolean;
-}): Promise<{ ok: boolean; batchId?: number; codigoLote?: string; error?: string }> {
+}): Promise<{ ok: boolean; batchId?: number; codigoLote?: string; error?: string; proveedoresSinCuenta?: string[] }> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "NO_SESSION" };
 
@@ -80,13 +80,11 @@ export async function createBatch(input: {
     codigo_lote?: string;
     invoice_keys?: string[];
     proveedores?: string[];
+    proveedores_sin_cuenta?: string[];
   };
   if (result.error === "INVOICE_ALREADY_IN_ACTIVE_BATCH") {
     const facturas = (result.invoice_keys ?? []).map((k) => k.split("|")[1] ?? k).join(", ");
     return { ok: false, error: `Estas facturas ya están en otro lote activo: ${facturas}` };
-  }
-  if (result.error === "PROVIDERS_WITHOUT_REGISTERED_ACCOUNT") {
-    return { ok: false, error: `Estos proveedores no tienen cuenta principal inscrita en Bancolombia: ${(result.proveedores ?? []).join(", ")}` };
   }
   if (result.error === "INCONSISTENT_MULTI_FLAG") {
     return { ok: false, error: "Seleccionaste facturas de un solo proveedor pero marcaste el lote como multi-proveedor." };
@@ -99,5 +97,10 @@ export async function createBatch(input: {
   if (input.providerId) revalidatePath(`/proveedores/${input.providerId}`);
   revalidatePath("/mesa-de-pagos");
   revalidatePath("/lotes");
-  return { ok: true, batchId: result.batch_id, codigoLote: result.codigo_lote };
+  return {
+    ok: true,
+    batchId: result.batch_id,
+    codigoLote: result.codigo_lote,
+    proveedoresSinCuenta: result.proveedores_sin_cuenta,
+  };
 }

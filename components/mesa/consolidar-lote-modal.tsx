@@ -100,7 +100,14 @@ export function ConsolidarLoteModal({
         esMultiproveedor,
       });
       if (result.ok && result.codigoLote) {
-        showToast({ kind: "success", message: `Lote ${result.codigoLote} creado en borrador.` });
+        const faltantes = result.proveedoresSinCuenta ?? [];
+        showToast({
+          kind: faltantes.length > 0 ? "warning" : "success",
+          message:
+            faltantes.length > 0
+              ? `Lote ${result.codigoLote} creado en borrador. Faltan cuentas por registrar: ${faltantes.join(", ")}.`
+              : `Lote ${result.codigoLote} creado en borrador.`,
+        });
         onCreated();
         onClose();
         router.push(`/lotes/${result.codigoLote}`);
