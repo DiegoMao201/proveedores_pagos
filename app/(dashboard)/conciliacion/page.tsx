@@ -8,6 +8,8 @@ import { PagosParcialesTable } from "@/components/conciliacion/pagos-parciales-t
 import { getPartialPaymentStatus } from "@/lib/partial-payment-data";
 import { RetencionNoConfiguradaTable } from "@/components/conciliacion/retencion-no-configurada-table";
 import { getRetencionesNoConfiguradas } from "@/lib/retention-suggestion-data";
+import { DuplicadosTable } from "@/components/conciliacion/duplicados-table";
+import { getPosiblesDuplicados } from "@/lib/duplicate-providers-data";
 import { ExcluidasTab } from "@/components/conciliacion/excluidas-tab";
 import {
   getReconciled,
@@ -69,9 +71,10 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   }
 
   let dataError: string | null = null;
-  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0, pagosParciales: 0, retencionesSinConfigurar: 0 };
+  let counts = { conciliadas: 0, correoSinErp: 0, erpSinCorreo: 0, alertas: 0, pagosParciales: 0, retencionesSinConfigurar: 0, duplicados: 0 };
   let partialPayments: Awaited<ReturnType<typeof getPartialPaymentStatus>> = [];
   let retencionesSinConfigurar: Awaited<ReturnType<typeof getRetencionesNoConfiguradas>> = [];
+  let duplicados: Awaited<ReturnType<typeof getPosiblesDuplicados>> = [];
   let kpis: {
     conciliadas: number;
     conciliadas_sin_diferencia: number;
@@ -86,7 +89,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
   let cutoffs: Awaited<ReturnType<typeof getHistoricalCutoffs>> | null = null;
 
   try {
-    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult, partialPaymentsResult, retencionesSinConfigurarResult] = await Promise.all([
+    const [reconciled, emailWithoutErp, erpWithoutEmail, alerts, kpisResult, diffsResult, excludedResult, cutoffsResult, partialPaymentsResult, retencionesSinConfigurarResult, duplicadosResult] = await Promise.all([
       soloMercancia
         ? getReconciledMercancia(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters)
         : getReconciled(1, tab === "conciliadas" ? PAGE_SIZE : 1, filters),
@@ -103,9 +106,11 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       getHistoricalCutoffs(),
       getPartialPaymentStatus(),
       getRetencionesNoConfiguradas(),
+      getPosiblesDuplicados(),
     ]);
 
     partialPayments = partialPaymentsResult;
+    duplicados = duplicadosResult;
     retencionesSinConfigurar = retencionesSinConfigurarResult;
     counts = {
       conciliadas: reconciled.total,
@@ -114,6 +119,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
       alertas: alerts.length,
       pagosParciales: partialPaymentsResult.filter((p) => p.estado_conciliacion !== "conciliado").length,
       retencionesSinConfigurar: retencionesSinConfigurarResult.length,
+      duplicados: duplicadosResult.length,
     };
     kpis = kpisResult;
     diffs = diffsResult;
@@ -265,6 +271,12 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
         <EmptyState icon={<CheckCircle2 size={48} />} text="No se detectaron retenciones sin configurar." />
       ) : (
         <RetencionNoConfiguradaTable rows={retencionesSinConfigurar} />
+      );
+    } else if (tab === "duplicados") {
+      content = duplicados.length === 0 ? (
+        <EmptyState icon={<CheckCircle2 size={48} />} text="No se detectaron proveedores duplicados." />
+      ) : (
+        <DuplicadosTable rows={duplicados} />
       );
     }
   } catch (error) {
@@ -454,6 +466,7 @@ export default async function ConciliacionPage({ searchParams }: PageProps) {
                 { key: "excluidas", label: "Excluidas", count: excludedInvoices.length },
                 { key: "pagos-parciales", label: "Pagos parciales", count: counts.pagosParciales },
                 { key: "retencion-sin-configurar", label: "Retención sin configurar", count: counts.retencionesSinConfigurar },
+                { key: "duplicados", label: "Proveedores duplicados", count: counts.duplicados },
               ]}
             />
             {content}
