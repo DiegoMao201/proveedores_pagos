@@ -82,7 +82,7 @@ export function MesaDePagosWorkspace({
   const [urgencia, setUrgencia] = useState<UrgenciaFiltro>("todas");
   const [orden, setOrden] = useState<OrdenFiltro>("descuento");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<number>>(() => new Set(initialInvoices.map((i) => i.proveedor_id)));
   const [pending, startTransition] = useTransition();
   const [modalOpen, setModalOpen] = useState(false);
   const skipNextCategoriaClear = useRef(true);
@@ -91,6 +91,7 @@ export function MesaDePagosWorkspace({
     startTransition(async () => {
       const fresh = await recalculateMesaInvoices(fechaPago);
       setInvoices(fresh);
+      setCollapsed(new Set(fresh.map((i) => i.proveedor_id)));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechaPago]);
