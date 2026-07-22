@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, CheckCircle2, AlertTriangle, MessageCircle, Package } from "lucide-react";
+import { Search, CheckCircle2, AlertTriangle, MessageCircle, Package, MapPin } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatFull, formatDateEs, humanizeProviderName } from "@/lib/format";
 import type { ReferenciaFacturadaRow } from "@/lib/referencia-data";
@@ -11,9 +11,17 @@ const CONTACTOS_BODEGA = [
   { nombre: "Bodega / Compras 2", telefono: "573205046277" },
 ];
 
-function whatsappUrl(telefono: string, referencia: string): string {
-  const mensaje = `Hola, estoy verificando la referencia ${referencia}. No me aparece facturada en los últimos 5 días, ¿me confirman su estado en inventario?`;
+function whatsappUrl(telefono: string, mensaje: string): string {
   return `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+}
+
+function mensajeNoEncontrada(referencia: string): string {
+  return `Hola, estoy verificando la referencia ${referencia}. No me aparece facturada en los últimos 8 días, ¿me confirman su estado en inventario?`;
+}
+
+function mensajeFacturadaSinIngresar(row: ReferenciaFacturadaRow): string {
+  const entrega = row.entrega_direccion ? ` Se despachó a: ${row.entrega_direccion}${row.entrega_nombre ? ` (${row.entrega_nombre})` : ""}.` : "";
+  return `Hola, la referencia ${row.referencia} ya está facturada (factura ${row.num_factura}, ${humanizeProviderName(row.proveedor_correo)}) pero no la veo ingresada al inventario.${entrega} ¿Me confirman si ya llegó o cuándo llega?`;
 }
 
 type Estado = "idle" | "loading" | "encontrada" | "no-encontrada" | "error";
@@ -54,8 +62,8 @@ export function BuscarReferencia() {
           Consultar referencia facturada
         </p>
         <p className="mt-1 text-stone" style={{ fontSize: 11.5 }}>
-          Solo busca en facturas de proveedores estratégicos emitidas en los últimos 5 días. Si la factura tiene más de
-          5 días, se asume que la mercancía ya se recibió y no cuenta como "en tránsito".
+          Solo busca en facturas de proveedores estratégicos emitidas en los últimos 8 días. Si la factura tiene más de
+          8 días, se asume que la mercancía ya se recibió y no cuenta como "en tránsito".
         </p>
         <div className="mt-3 flex gap-2">
           <input
@@ -91,7 +99,11 @@ export function BuscarReferencia() {
       {estado === "encontrada" && (
         <div className="flex flex-col gap-2.5">
           <p className="flex items-center gap-1.5 text-success" style={{ fontSize: 12.5, fontWeight: 800 }}>
-            <CheckCircle2 size={16} /> Referencia {referenciaConsultada} facturada en los últimos 5 días
+            <CheckCircle2 size={16} /> Referencia {referenciaConsultada} facturada en los últimos 8 días
+          </p>
+          <p className="text-stone" style={{ fontSize: 11 }}>
+            Ya está facturada, pero eso no significa que ya esté ingresada al inventario. Si no la ves físicamente,
+            escríbele a bodega/compras desde cada tarjeta para confirmar.
           </p>
           {resultados.map((r, i) => (
             <Card key={`${r.invoice_key}-${i}`} className="border-success-soft">
@@ -107,6 +119,14 @@ export function BuscarReferencia() {
                       <Package size={12} /> {r.descripcion}
                     </p>
                   )}
+                  {r.entrega_direccion && (
+                    <p className="mt-1 flex items-start gap-1 text-graphite" style={{ fontSize: 11.5 }}>
+                      <MapPin size={12} className="mt-0.5 shrink-0" />
+                      <span>
+                        Despachado a{r.entrega_nombre ? ` ${r.entrega_nombre}` : ""}: {r.entrega_direccion}
+                      </span>
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   <p className="text-ink" style={{ fontSize: 18, fontWeight: 900 }}>
@@ -114,6 +134,21 @@ export function BuscarReferencia() {
                   </p>
                   <p className="text-stone" style={{ fontSize: 10.5 }}>{formatFull(r.valor_linea)}</p>
                 </div>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-1.5 border-t border-line pt-2.5 sm:flex-row">
+                {CONTACTOS_BODEGA.map((c) => (
+                  <a
+                    key={c.telefono}
+                    href={whatsappUrl(c.telefono, mensajeFacturadaSinIngresar(r))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-white transition-opacity hover:opacity-90"
+                    style={{ background: "#25D366", fontSize: 11.5, fontWeight: 800 }}
+                  >
+                    <MessageCircle size={14} /> ¿Por qué no ha llegado? ({c.telefono.slice(2)})
+                  </a>
+                ))}
               </div>
             </Card>
           ))}
@@ -127,7 +162,7 @@ export function BuscarReferencia() {
               <AlertTriangle size={16} /> Sin facturas recientes para "{referenciaConsultada}"
             </p>
             <p className="mt-1 text-stone" style={{ fontSize: 11.5 }}>
-              No aparece facturada por ningún proveedor estratégico en los últimos 5 días. Por el tiempo transcurrido, si
+              No aparece facturada por ningún proveedor estratégico en los últimos 8 días. Por el tiempo transcurrido, si
               existió una factura ya debió recibirse e ingresar a inventario — confirma directamente con bodega/compras.
             </p>
           </Card>
@@ -136,7 +171,7 @@ export function BuscarReferencia() {
             {CONTACTOS_BODEGA.map((c) => (
               <a
                 key={c.telefono}
-                href={whatsappUrl(c.telefono, referenciaConsultada)}
+                href={whatsappUrl(c.telefono, mensajeNoEncontrada(referenciaConsultada))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-3 text-white transition-opacity hover:opacity-90"

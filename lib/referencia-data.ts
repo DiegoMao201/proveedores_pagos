@@ -14,6 +14,8 @@ export interface ReferenciaFacturadaRow {
   fecha_recepcion_correo: string | null;
   proveedor_id: number;
   categoria_proveedor: string;
+  entrega_nombre: string | null;
+  entrega_direccion: string | null;
 }
 
 /** Consulta si una referencia de producto aparece facturada en los ultimos 5
