@@ -11,7 +11,7 @@ import type { OwnBankAccountRow, DataFreshness } from "@/lib/batch-data";
 
 type CategoriaFiltro = "estrategico" | "locativo" | "todos";
 type UrgenciaFiltro = "descuento" | "semana" | "mes" | "todas";
-type OrdenFiltro = "descuento" | "valor" | "vencimiento" | "proveedor";
+type OrdenFiltro = "descuento" | "valor" | "vencimiento" | "proveedor" | "emision" | "numero";
 
 const CATEGORIA_OPTIONS: { key: CategoriaFiltro; label: string }[] = [
   { key: "estrategico", label: "Estratégicos (mercancía)" },
@@ -30,6 +30,8 @@ const ORDEN_OPTIONS: { key: OrdenFiltro; label: string }[] = [
   { key: "descuento", label: "Descuento por perder ⚡" },
   { key: "valor", label: "Valor descendente" },
   { key: "vencimiento", label: "Vencimiento próximo" },
+  { key: "emision", label: "Fecha de emisión" },
+  { key: "numero", label: "Número de factura" },
   { key: "proveedor", label: "Proveedor A-Z" },
 ];
 
@@ -172,6 +174,10 @@ export function MesaDePagosWorkspace({
           });
         case "proveedor":
           return copy;
+        case "emision":
+          return copy.sort((a, b) => new Date(a.fecha_emision).getTime() - new Date(b.fecha_emision).getTime());
+        case "numero":
+          return copy.sort((a, b) => a.num_factura.localeCompare(b.num_factura, "es", { numeric: true, sensitivity: "base" }));
         case "descuento":
         default:
           return copy.sort((a, b) => b.valor_descuento - a.valor_descuento);

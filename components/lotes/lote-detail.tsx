@@ -7,8 +7,10 @@ import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Toast, useToast } from "@/components/ui/toast";
 import { formatFull, formatDateEs, formatDateRelative, humanizeProviderName } from "@/lib/format";
-import { markBatchPaid, cancelBatch, removeBatchItem, overrideBatchItemDiscount, revertPartialPayment } from "@/lib/lotes-actions";
+import { cancelBatch, removeBatchItem, overrideBatchItemDiscount, revertPartialPayment } from "@/lib/lotes-actions";
 import { AddInvoicesModal } from "@/components/lotes/add-invoices-modal";
+import { AddProviderModal } from "@/components/lotes/add-provider-modal";
+import { MarcarPagadoModal } from "@/components/lotes/marcar-pagado-modal";
 import { AbonosLoteCard } from "@/components/lotes/abonos-lote-card";
 import { PagoParcialModal } from "@/components/lotes/pago-parcial-modal";
 import { SoporteLoteButton } from "@/components/lotes/soporte-lote-button";
@@ -120,14 +122,43 @@ function ItemsTable({
   onRevertPartial: (item: BatchItemDetailRow) => void;
 }) {
   const [pagoParcialItem, setPagoParcialItem] = useState<BatchItemDetailRow | null>(null);
+  const [sortBy, setSortBy] = useState<"emision" | "numero" | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
+
+  function toggleSort(key: "emision" | "numero") {
+    if (sortBy === key) {
+      setSortAsc((prev) => !prev);
+    } else {
+      setSortBy(key);
+      setSortAsc(true);
+    }
+  }
+
+  const sortedItems = [...items].sort((a, b) => {
+    if (!sortBy) return 0;
+    const cmp =
+      sortBy === "numero"
+        ? a.num_factura.localeCompare(b.num_factura, "es", { numeric: true, sensitivity: "base" })
+        : new Date(a.fecha_emision ?? 0).getTime() - new Date(b.fecha_emision ?? 0).getTime();
+    return sortAsc ? cmp : -cmp;
+  });
+
+  function sortIndicator(key: "emision" | "numero") {
+    if (sortBy !== key) return null;
+    return sortAsc ? " ▲" : " ▼";
+  }
 
   return (
     <div className="overflow-x-auto">
       <table className="w-full" style={{ fontSize: 11 }}>
         <thead>
           <tr className="border-b border-line bg-parchment text-stone" style={{ fontSize: 9, textTransform: "uppercase" }}>
-            <th className="px-3 py-2 text-left">Documento</th>
-            <th className="px-3 py-2 text-left">Emisión</th>
+            <th className="cursor-pointer px-3 py-2 text-left hover:text-red-deep" onClick={() => toggleSort("numero")}>
+              Documento{sortIndicator("numero")}
+            </th>
+            <th className="cursor-pointer px-3 py-2 text-left hover:text-red-deep" onClick={() => toggleSort("emision")}>
+              Emisión{sortIndicator("emision")}
+            </th>
             <th className="px-3 py-2 text-right">Bruto</th>
             <th className="px-3 py-2 text-right">Descuento</th>
             <th className="px-3 py-2 text-right">Retenciones</th>
@@ -136,7 +167,7 @@ function ItemsTable({
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => {
+          {sortedItems.map((item) => {
             const retencion = item.valor_retencion_fuente + item.valor_retencion_ica + item.valor_retencion_iva + item.valor_retencion_otros;
             const esNC = item.valor_bruto < 0;
             return (
@@ -276,6 +307,8 @@ export function LoteDetail({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [addModalProvider, setAddModalProvider] = useState<{ id: number; nombre: string } | null>(null);
+  const [addProviderModalOpen, setAddProviderModalOpen] = useState(false);
+  const [marcarPagadoOpen, setMarcarPagadoOpen] = useState(false);
   const { toast, showToast } = useToast();
 
   const estado = ESTADO_LABELS[batch.estado];
@@ -370,17 +403,6 @@ export function LoteDetail({
     });
   }
 
-  function handleMarkPaid() {
-    startTransition(async () => {
-      const result = await markBatchPaid(batch.id, batch.codigo_lote);
-      if (result.ok) {
-        showToast({ kind: "success", message: "Lote marcado como pagado." });
-        router.refresh();
-      } else {
-        showToast({ kind: "error", message: result.error ?? "No se pudo marcar como pagado." });
-      }
-    });
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -504,6 +526,48 @@ export function LoteDetail({
         </Card>
       )}
 
+      {esMultiproveedor && breakdown.length > 1 && (
+        <Card className="!p-0 overflow-hidden">
+          <div className="px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
+            <p className="text-ink" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>Resumen por proveedor</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-cream-soft text-left text-xs font-semibold uppercase tracking-wide text-stone">
+                <tr>
+                  <th className="px-3.5 py-2">Proveedor</th>
+                  <th className="px-3 py-2 text-right">Documentos</th>
+                  <th className="px-3 py-2 text-right">Bruto</th>
+                  <th className="px-3 py-2 text-right">Descuento</th>
+                  <th className="px-3 py-2 text-right">Retenciones</th>
+                  <th className="px-3.5 py-2 text-right">Neto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {breakdown.map((b) => (
+                  <tr key={b.proveedor_id} className="border-b border-line last:border-0">
+                    <td className="px-3.5 py-2 font-semibold text-ink">{humanizeProviderName(b.proveedor_nombre)}</td>
+                    <td className="num px-3 py-2 text-right text-stone">
+                      {b.num_facturas} fact.{b.num_ncs > 0 ? ` + ${b.num_ncs} NC` : ""}
+                    </td>
+                    <td className="num px-3 py-2 text-right">{formatFull((b.total_bruto_facturas ?? 0) + (b.total_ncs ?? 0))}</td>
+                    <td className="num px-3 py-2 text-right text-success">{b.total_descuento > 0 ? `−${formatFull(b.total_descuento)}` : "—"}</td>
+                    <td className="num px-3 py-2 text-right text-orange">{b.total_retenciones > 0 ? `−${formatFull(b.total_retenciones)}` : "—"}</td>
+                    <td className="num px-3.5 py-2 text-right font-semibold">{formatFull(b.total_neto)}</td>
+                  </tr>
+                ))}
+                <tr style={{ background: "var(--color-parchment)" }}>
+                  <td className="px-3.5 py-2 font-bold text-ink" colSpan={5}>TOTAL</td>
+                  <td className="num px-3.5 py-2 text-right font-bold">
+                    {formatFull(breakdown.reduce((sum, b) => sum + b.total_neto, 0))}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
       <Card className="!p-0 overflow-hidden">
         <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: "var(--color-parchment)" }}>
           <p className="text-ink" style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase" }}>Detalle del lote</p>
@@ -515,6 +579,16 @@ export function LoteDetail({
               style={{ fontSize: 10.5, fontWeight: 700 }}
             >
               <Plus size={12} /> Agregar facturas
+            </button>
+          )}
+          {editableItems && esMultiproveedor && (
+            <button
+              type="button"
+              onClick={() => setAddProviderModalOpen(true)}
+              className="flex items-center gap-1 rounded-md border border-line px-2 py-1 text-graphite hover:border-red-deep hover:text-red-deep"
+              style={{ fontSize: 10.5, fontWeight: 700 }}
+            >
+              <Plus size={12} /> Agregar proveedor
             </button>
           )}
         </div>
@@ -618,11 +692,11 @@ export function LoteDetail({
               <button
                 type="button"
                 disabled={pending}
-                onClick={handleMarkPaid}
+                onClick={() => setMarcarPagadoOpen(true)}
                 className="flex items-center gap-1.5 rounded-md bg-success px-4 py-2 text-white disabled:opacity-40"
                 style={{ fontSize: 12, fontWeight: 800 }}
               >
-                <CheckCircle2 size={14} /> {pending ? "Marcando…" : "Marcar como pagado"}
+                <CheckCircle2 size={14} /> Marcar como pagado
               </button>
               <button type="button" disabled={pending} onClick={handleExport} className="rounded-md border border-line px-3 py-2 text-graphite disabled:opacity-40" style={{ fontSize: 12, fontWeight: 700 }}>
                 {pending ? "Exportando…" : "Re-exportar PAB"}
@@ -660,6 +734,22 @@ export function LoteDetail({
         providerId={addModalProvider?.id ?? 0}
         providerNombre={humanizeProviderName(addModalProvider?.nombre ?? "")}
         fechaPago={batch.fecha_pago_programada}
+      />
+      <AddProviderModal
+        open={addProviderModalOpen}
+        onClose={() => setAddProviderModalOpen(false)}
+        excludeIds={breakdown.map((b) => b.proveedor_id)}
+        onPick={(provider) => {
+          setAddProviderModalOpen(false);
+          setAddModalProvider(provider);
+        }}
+      />
+      <MarcarPagadoModal
+        open={marcarPagadoOpen}
+        onClose={() => setMarcarPagadoOpen(false)}
+        batchId={batch.id}
+        codigoLote={batch.codigo_lote}
+        items={items}
       />
       <Toast toast={toast} />
     </div>

@@ -16,7 +16,7 @@ import type {
 } from "@/lib/batch-data";
 import type { BankAccountRow } from "@/lib/bank-account-data";
 
-type SortKey = "descuento" | "valor" | "vencimiento" | "emision" | "nc_primero";
+type SortKey = "descuento" | "valor" | "vencimiento" | "emision" | "emision_asc" | "numero" | "nc_primero";
 
 function origenBadge(row: ProviderPaidRow) {
   if (row.origen_saldado === "app_batch_confirmado_erp") {
@@ -91,7 +91,9 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "descuento", label: "Descuento por perder" },
   { key: "valor", label: "Valor descendente" },
   { key: "vencimiento", label: "Vencimiento próximo" },
-  { key: "emision", label: "Emisión reciente" },
+  { key: "emision", label: "Emisión (más reciente)" },
+  { key: "emision_asc", label: "Emisión (más antigua)" },
+  { key: "numero", label: "Número de factura" },
   { key: "nc_primero", label: "NCs primero" },
 ];
 
@@ -108,6 +110,10 @@ function sortInvoices(list: ProviderInvoiceCalc[], sortKey: SortKey): ProviderIn
       });
     case "emision":
       return copy.sort((a, b) => new Date(b.fecha_emision).getTime() - new Date(a.fecha_emision).getTime());
+    case "emision_asc":
+      return copy.sort((a, b) => new Date(a.fecha_emision).getTime() - new Date(b.fecha_emision).getTime());
+    case "numero":
+      return copy.sort((a, b) => a.num_factura.localeCompare(b.num_factura, "es", { numeric: true, sensitivity: "base" }));
     case "nc_primero":
       return copy.sort((a, b) => {
         if (a.tipo_documento === b.tipo_documento) return 0;

@@ -3,10 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { postgrestFetch } from "@/lib/postgrest";
+import { listProviders, type ProviderRow } from "@/lib/provider-detail-data";
 
 async function currentUserId(): Promise<string | null> {
   const session = await auth();
   return session?.user.id ?? null;
+}
+
+export async function getProvidersForAdd(excludeIds: number[]): Promise<ProviderRow[]> {
+  const providers = await listProviders();
+  const exclude = new Set(excludeIds);
+  return providers.filter((p) => p.activo && !exclude.has(p.id));
 }
 
 function revalidateBatch(codigoLote: string) {
@@ -38,7 +45,10 @@ export async function markBatchExported(batchId: number, codigoLote: string): Pr
   return { ok: true };
 }
 
-export async function markBatchPaid(batchId: number, codigoLote: string): Promise<{ ok: boolean; error?: string }> {
+export async function markBatchPaid(
+  batchId: number,
+  codigoLote: string
+): Promise<{ ok: boolean; error?: string; nuevoCodigoLote?: string; facturasMovidas?: number }> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "NO_SESSION" };
 
@@ -57,6 +67,34 @@ export async function markBatchPaid(batchId: number, codigoLote: string): Promis
 
   revalidateBatch(codigoLote);
   return { ok: true };
+}
+
+export async function markBatchPaidPartial(
+  batchId: number,
+  paidItemIds: number[],
+  codigoLote: string
+): Promise<{ ok: boolean; error?: string; nuevoCodigoLote?: string; facturasMovidas?: number }> {
+  const userId = await currentUserId();
+  if (!userId) return { ok: false, error: "NO_SESSION" };
+
+  const res = await postgrestFetch(
+    "/rpc/mark_batch_paid_partial",
+    { method: "POST", body: JSON.stringify({ p_batch_id: batchId, p_paid_item_ids: paidItemIds, p_user_id: userId }) },
+    "treasury"
+  );
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  const result = (await res.json()) as { ok?: boolean; error?: string; nuevo_codigo_lote?: string; facturas_movidas?: number };
+  if (result.error === "BATCH_NOT_EXPORTED") return { ok: false, error: "Este lote no está en estado 'exportado'." };
+  if (result.error === "BATCH_HAS_ABONOS_APLICADOS") {
+    return { ok: false, error: "Este lote tiene abonos de sede aplicados -- desaplícalos primero para poder dividirlo." };
+  }
+  if (result.error === "NO_ITEMS_SELECTED") return { ok: false, error: "Marca al menos una factura como pagada." };
+  if (result.error) return { ok: false, error: result.error };
+
+  revalidateBatch(codigoLote);
+  if (result.nuevo_codigo_lote) revalidatePath(`/lotes/${result.nuevo_codigo_lote}`);
+  return { ok: true, nuevoCodigoLote: result.nuevo_codigo_lote, facturasMovidas: result.facturas_movidas };
 }
 
 export async function addInvoicesToBatch(batchId: number, invoiceKeys: string[], codigoLote: string): Promise<{ ok: boolean; error?: string; numAgregadas?: number }> {

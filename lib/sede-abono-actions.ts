@@ -74,6 +74,82 @@ export async function reportarSedeAbono(formData: FormData): Promise<{ ok: boole
   return { ok: true };
 }
 
+interface LineaAbono {
+  tipoOrigen: "planilla" | "recibo_caja";
+  fecha: string;
+  valor: number;
+  numeroReferencia?: string;
+}
+
+/** Reporta varias consignaciones (cada una con su fecha, motivo y valor) en un
+ * solo envío, compartiendo UNA sola foto/comprobante -- para cuando una misma
+ * foto (ej. un extracto o varios recibos fotografiados juntos) respalda varios
+ * valores distintos y no tiene sentido repetir la subida del archivo por cada
+ * uno. */
+export async function reportarSedeAbonos(formData: FormData): Promise<{ ok: boolean; error?: string }> {
+  const user = await currentUser();
+  if (!user) return { ok: false, error: "NO_SESSION" };
+  if (user.role !== "sede" || !user.sede) return { ok: false, error: "Solo un usuario de sede puede reportar abonos." };
+
+  const lineasRaw = formData.get("lineas");
+  const comprobante = formData.get("comprobante");
+
+  if (typeof lineasRaw !== "string") return { ok: false, error: "Faltan las consignaciones a reportar." };
+  let lineas: LineaAbono[];
+  try {
+    lineas = JSON.parse(lineasRaw);
+  } catch {
+    return { ok: false, error: "No se pudieron leer las consignaciones." };
+  }
+  if (!Array.isArray(lineas) || lineas.length === 0) return { ok: false, error: "Agrega al menos una consignación." };
+  if (lineas.length > 20) return { ok: false, error: "Máximo 20 consignaciones por envío." };
+
+  for (const linea of lineas) {
+    if (linea.tipoOrigen !== "planilla" && linea.tipoOrigen !== "recibo_caja") {
+      return { ok: false, error: "Selecciona si cada consignación es planilla o recibos de caja." };
+    }
+    if (typeof linea.fecha !== "string" || !linea.fecha) return { ok: false, error: "Falta la fecha de alguna consignación." };
+    if (!Number.isFinite(linea.valor) || linea.valor <= 0) return { ok: false, error: "El valor de cada consignación debe ser mayor a cero." };
+  }
+
+  if (!(comprobante instanceof File) || comprobante.size === 0) return { ok: false, error: "Adjunta la foto o PDF del comprobante." };
+  if (comprobante.size > MAX_FILE_BYTES) return { ok: false, error: "El comprobante no puede pesar más de 5 MB." };
+  if (!ALLOWED_MIME.has(comprobante.type)) return { ok: false, error: "El comprobante debe ser una imagen (JPG/PNG/WEBP) o un PDF." };
+
+  const providerId = await getPintucoProviderId();
+  const bytes = await comprobante.arrayBuffer();
+  const hex = `\\x${Buffer.from(bytes).toString("hex")}`;
+
+  const res = await postgrestFetch(
+    "/sede_abono",
+    {
+      method: "POST",
+      body: JSON.stringify(
+        lineas.map((linea) => ({
+          provider_id: providerId,
+          sede: user.sede,
+          tipo_origen: linea.tipoOrigen,
+          periodo_desde: linea.fecha,
+          periodo_hasta: linea.fecha,
+          valor: linea.valor,
+          numero_referencia: linea.numeroReferencia?.trim() || null,
+          observaciones: null,
+          comprobante_contenido: hex,
+          comprobante_mime: comprobante.type,
+          created_by: user.id,
+        }))
+      ),
+    },
+    "treasury"
+  );
+
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}: ${await res.text()}` };
+
+  revalidatePath("/abonos");
+  revalidatePath("/abonos-sedes");
+  return { ok: true };
+}
+
 export async function applySedeAbonosToBatch(batchId: number, abonoIds: number[], codigoLote: string): Promise<{ ok: boolean; error?: string }> {
   const user = await currentUser();
   if (!user) return { ok: false, error: "NO_SESSION" };
