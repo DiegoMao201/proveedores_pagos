@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus, Wallet, Landmark } from "lucide-react";
+import { Home, Building2, TrendingUp, Layers, BarChart3, Percent, Receipt, FileMinus, Wallet, Landmark, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { AppRole } from "@/lib/tokens";
 
@@ -20,6 +20,7 @@ const NAV_SECTIONS = [
       { href: "/rebate/pintuco", label: "Rebate", icon: TrendingUp },
       { href: "/lotes", label: "Lotes", icon: Layers },
       { href: "/abonos-sedes", label: "Abonos sedes", icon: Landmark },
+      { href: "/referencias", label: "Referencias", icon: Search },
     ],
   },
   {
