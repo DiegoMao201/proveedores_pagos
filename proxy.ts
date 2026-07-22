@@ -10,7 +10,12 @@ export default auth((req) => {
   const { pathname } = req.nextUrl;
 
   const isAuthRoute = pathname.startsWith("/login") || pathname.startsWith("/api/auth");
-  if (isAuthRoute) {
+  // /referencias es de consulta libre a proposito (Diego, 22 jul 2026): se
+  // comparte con colaboradores de bodega/compras sin usuario ni contraseña.
+  // La consulta ya usa el rol anonimo de PostgREST (web_anon) con acceso
+  // acotado a una sola vista -- no depende de que haya sesion.
+  const isPublicRoute = pathname.startsWith("/referencias") || pathname.startsWith("/api/referencias");
+  if (isAuthRoute || isPublicRoute) {
     return NextResponse.next();
   }
 
